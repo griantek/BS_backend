@@ -14,8 +14,7 @@ app.use(bodyParser.json());
 // API Routes
 app.use('/api/executive', executiveRoutes);
 app.use('/api/prospectus', executiveRoutes); // Keep original prospectus route path but use executive router
-app.use('/api/services', superAdminRoutes);
-app.use('/api/superadmin', superAdminRoutes);
+app.use('/api/superadmin', superAdminRoutes);  // Only this route for both superadmin and services
 
 const PORT = process.env.PORT || 5000;
 

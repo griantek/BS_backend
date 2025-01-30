@@ -82,7 +82,7 @@ exports.createExecutive = async (req, res) => {
 };
 
 exports.getAllExecutives = async (req, res) => {
-  console.log('Get all executives');
+  // console.log('Get all executives',req.body);
   const { data, error } = await supabase
     .from('executive')
     .select('id, username, email, role, created_at')  // Explicitly exclude password
@@ -95,7 +95,8 @@ exports.getAllExecutives = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-
+  
+  // console.log('Get all executives response:', data);
   res.status(200).json({
     success: true,
     data,
