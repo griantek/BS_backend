@@ -58,10 +58,7 @@ exports.createExecutive = async (req, res) => {
 
   try {
     // Hash password before storing
-    const hashedPassword = await bcrypt.hash(
-      password, 
-      parseInt(process.env.BCRYPT_SALT_ROUNDS)
-    );
+    const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
 
     const { data, error } = await supabase
       .from('executive')

@@ -9,11 +9,11 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// SuperAdmin routes
+// Public SuperAdmin routes
 router.post('/login', loginSuperAdmin);
-router.post('/create', auth, createSuperAdmin);
+router.post('/create', createSuperAdmin);
 
-// Service routes (now handled by superAdmin)
+// Protected Service routes
 router.post('/services/create', auth, createService);
 router.get('/services/all', auth, getAllServices);
 
