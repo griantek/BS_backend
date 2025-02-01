@@ -1,6 +1,6 @@
 # Griantek Business System API
 
-Backend API service for Griantek business management system built with Node.js, Express, and Supabase.
+Backend API service for Graintek business management system built with Node.js, Express, and Supabase.
 
 ## Features
 
@@ -38,26 +38,46 @@ Backend API service for Griantek business management system built with Node.js, 
   - Fee
   - Duration (min/max)
 
+### Registration Management
+- Create new registrations
+- View all registrations
+- View registration by ID
+- Delete registrations
+- Track registration status and payments
+- Link registrations to prospectus and bank accounts
+
+### Bank Account Management
+- View all bank accounts
+- View bank account by ID
+- Used for payment tracking in registrations
+
 ## API Endpoints
+
+### Common Routes
+- GET `/api/common/bank-accounts/all` - Get all bank accounts
+- GET `/api/common/bank-accounts/:id` - Get bank account by ID
+- GET `/api/common/services/all` - Get all services
+- GET `/api/common/services/:id` - Get service by ID
+- POST `/api/common/services/create` - Create new service
+- GET `/api/common/registration/all` - Get all registrations
+- GET `/api/common/registration/:id` - Get registration by ID
+- POST `/api/common/registration/create` - Create new registration
+- DELETE `/api/common/registration/:id` - Delete registration
 
 ### SuperAdmin Routes
 - POST `/api/superadmin/login` - SuperAdmin login
 - POST `/api/superadmin/create` - Create new SuperAdmin
-
-### Services Routes
-- POST `/api/services/create` - Create new service (Protected)
-- GET `/api/services/all` - Get all services (Protected)
+- POST `/api/superadmin/services/create` - Create new service
+- GET `/api/superadmin/services/all` - Get all services
 
 ### Executive Routes
 - POST `/api/executive/create` - Create new executive
 - POST `/api/executive/login` - Executive login
-- GET `/api/executive/all` - Get all executives (Protected)
-
-### Prospectus Routes
-- POST `/api/prospectus/create` - Create new prospectus (Protected)
-- GET `/api/prospectus/all` - Get all prospectus (Protected)
-- GET `/api/prospectus/executive/:executiveId` - Get prospectus by executive (Protected)
-- GET `/api/prospectus/register/:regId` - Get prospectus by registration ID (Protected)
+- GET `/api/executive/all` - Get all executives
+- POST `/api/executive/prospectus/create` - Create new prospectus
+- GET `/api/executive/prospectus/all` - Get all prospectus
+- GET `/api/executive/prospectus/:executiveId` - Get prospectus by executive
+- GET `/api/executive/prospectus/register/:regId` - Get prospectus by registration ID
 
 ## Technical Stack
 - Node.js & Express
@@ -101,6 +121,8 @@ Backend API service for Griantek business management system built with Node.js, 
 - executive
 - prospectus
 - services
+- registration
+- bank_accounts
 
 ## Error Handling
 - Standardized error responses

@@ -20,7 +20,7 @@ router.get('/all', auth, getAllExecutives);
 // Prospectus routes (now handled by executive)
 router.post('/prospectus/create', auth, createProspectus);
 router.get('/prospectus/all', auth, getProspectus);
-router.get('/prospectus/executive/:executiveId', auth, getProspectusByExecutiveId);
+router.get('/prospectus/:executiveId', auth, getProspectusByExecutiveId);
 router.get('/prospectus/register/:regId', auth, getProspectusByRegId);
 
 module.exports = router;

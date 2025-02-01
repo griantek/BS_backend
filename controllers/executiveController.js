@@ -106,7 +106,7 @@ exports.getAllExecutives = async (req, res) => {
 
 // Added prospectus-related functions
 exports.createProspectus = async (req, res) => {
-    console.log('Request body:', req.body);
+    // console.log('Request body:', req.body);
     const {
         clientEmail,
         clientId,
@@ -195,6 +195,7 @@ exports.getProspectusByExecutiveId = async (req, res) => {
         });
     }
 
+    // console.log("data", data);
     res.status(200).json({
         success: true,
         data,
@@ -203,7 +204,7 @@ exports.getProspectusByExecutiveId = async (req, res) => {
 };
 
 exports.getProspectusByRegId = async (req, res) => {
-    console.log('Request params:', req.params);
+    // console.log('Request params:', req.params);
     const { regId } = req.params;
 
     const { data, error } = await supabase
@@ -219,6 +220,7 @@ exports.getProspectusByRegId = async (req, res) => {
             timestamp: new Date().toISOString()
         });
     }
+    // console.log("data", data);
 
     res.status(200).json({
         success: true,
