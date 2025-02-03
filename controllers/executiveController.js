@@ -231,3 +231,66 @@ exports.getProspectusByRegId = async (req, res) => {
         timestamp: new Date().toISOString()
     });
 };
+
+exports.getRegistrationsByExecutiveId = async (req, res) => {
+    const { executiveId } = req.params;
+    console.log(`Fetching registrations for executive: ${executiveId}`);
+
+    // First get all prospectus IDs for this executive
+    const { data: prospectusData, error: prospectusError } = await supabase
+        .from('prospectus')
+        .select('id')
+        .eq('executive_id', executiveId);
+
+    if (prospectusError) {
+        console.log('Error fetching prospectus:', prospectusError);
+        return res.status(400).json({
+            success: false,
+            error: prospectusError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!prospectusData.length) {
+        return res.status(200).json({
+            success: true,
+            data: [],
+            message: 'No prospectus found for this executive',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Get all prospectus IDs
+    const prospectusIds = prospectusData.map(p => p.id);
+
+    // Then get all registrations for these prospectus IDs
+    const { data: registrations, error: registrationError } = await supabase
+        .from('registration')
+        .select(`
+            *,
+            prospectus:prospectus_id(*),
+            bank_accounts:bank_id(*),
+            transactions:transaction_id(
+                *,
+                executive:exec_id(*)
+            )
+        `)
+        .in('prospectus_id', prospectusIds)
+        .order('created_at', { ascending: false });
+      
+
+    if (registrationError) {
+        console.log('Error fetching registrations:', registrationError);
+        return res.status(400).json({
+            success: false,
+            error: registrationError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data: registrations,
+        timestamp: new Date().toISOString()
+    });
+};
