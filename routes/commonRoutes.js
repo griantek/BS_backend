@@ -8,7 +8,9 @@ const {
     getAllRegistrations,
     getRegistrationById,
     createRegistration,
-    deleteRegistration
+    deleteRegistration,
+    getAllTransactions,
+    createTransaction
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -28,5 +30,9 @@ router.get('/registration/all', auth, getAllRegistrations);
 router.get('/registration/:id', auth, getRegistrationById);
 router.post('/registration/create', auth, createRegistration);
 router.delete('/registration/:id', auth, deleteRegistration);
+
+// Transaction routes
+router.get('/transactions/all', auth, getAllTransactions);
+router.post('/transactions/create', auth, createTransaction);
 
 module.exports = router;

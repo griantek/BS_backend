@@ -121,6 +121,8 @@ exports.createProspectus = async (req, res) => {
         requirement,
         state,
         techPerson,
+        notes,
+        nextFollowUp
     } = req.body;
 
     const { data, error } = await supabase
@@ -138,6 +140,8 @@ exports.createProspectus = async (req, res) => {
             requirement,
             proposed_service_period: period,
             services: proposedService,
+            notes:notes,
+            next_follow_up: nextFollowUp
         }])
         .select();
 

@@ -38,13 +38,27 @@ Backend API service for Graintek business management system built with Node.js, 
   - Fee
   - Duration (min/max)
 
+### Transaction Management
+- Create new transactions
+- View all transactions
+- Track transaction details:
+  - Transaction type (UPI, Bank Transfer, Card, Cash, Cheque, Wallet)
+  - Transaction ID
+  - Amount
+  - Date
+  - Additional info (UPI ID, Account details, etc.)
+  - Executive reference
+
 ### Registration Management
-- Create new registrations
+- Create new registrations with integrated transaction tracking
 - View all registrations
 - View registration by ID
 - Delete registrations
 - Track registration status and payments
-- Link registrations to prospectus and bank accounts
+- Link registrations to:
+  - Prospectus
+  - Bank accounts
+  - Transactions
 
 ### Bank Account Management
 - View all bank accounts
@@ -63,6 +77,8 @@ Backend API service for Graintek business management system built with Node.js, 
 - GET `/api/common/registration/:id` - Get registration by ID
 - POST `/api/common/registration/create` - Create new registration
 - DELETE `/api/common/registration/:id` - Delete registration
+- GET `/api/common/transactions/all` - Get all transactions
+- POST `/api/common/transactions/create` - Create new transaction
 
 ### SuperAdmin Routes
 - POST `/api/superadmin/login` - SuperAdmin login
@@ -123,6 +139,7 @@ Backend API service for Graintek business management system built with Node.js, 
 - services
 - registration
 - bank_accounts
+- transactions
 
 ## Error Handling
 - Standardized error responses

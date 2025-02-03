@@ -166,22 +166,66 @@ exports.createService = async (req, res) => {
 };
 
 //====================================
-// Registration Controllers
+// Transaction Controllers
 //====================================
-exports.getAllRegistrations = async (req, res) => {
-    console.log('Fetching all registrations');
+exports.createTransaction = async (req, res) => {
+    const {
+        transaction_type,
+        transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        exec_id
+    } = req.body;
+
+    if (!transaction_type || !transaction_id || !amount || !transaction_date) {
+        return res.status(400).json({
+            success: false,
+            error: 'Missing required transaction fields',
+            timestamp: new Date().toISOString()
+        });
+    }
 
     const { data, error } = await supabase
-        .from('registration')
-        .select(`
-            *,
-            prospectus:prospectus_id(id, company_name),
-            bank_accounts:bank_id(id, bank_name)
-        `)
-        .order('created_at', { ascending: false });
+        .from('transactions')
+        .insert([{
+            transaction_type,
+            transaction_id,
+            amount,
+            transaction_date,
+            additional_info,
+            exec_id
+        }])
+        .select()
+        .single();
 
     if (error) {
-        console.log('Error fetching registrations:', error);
+        console.log('Error creating transaction:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.getAllTransactions = async (req, res) => {
+    const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+            *,
+            executive:exec_id(id, username)
+        `)
+        .order('transaction_date', { ascending: false });
+
+    if (error) {
+        console.log('Error fetching transactions:', error);
         return res.status(400).json({
             success: false,
             error: error.message,
@@ -192,6 +236,79 @@ exports.getAllRegistrations = async (req, res) => {
     res.status(200).json({
         success: true,
         data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+//====================================
+// Modified Registration Controllers
+//====================================
+exports.getAllRegistrations = async (req, res) => {
+    console.log('Fetching all registrations with complete data');
+
+    // First get all registrations with their related data
+    const { data: registrations, error: registrationError } = await supabase
+        .from('registration')
+        .select(`
+            *,
+            prospectus:prospectus_id(
+                id, 
+                client_name,
+                reg_id
+            ),
+            bank_accounts:bank_id(
+                bank,
+                account_number
+            ),
+            transactions:transaction_id(
+                id,
+                transaction_type,
+                transaction_id,
+                amount,
+                exec_id
+            )
+        `)
+        .order('created_at', { ascending: false });
+
+    if (registrationError) {
+        console.log('Error fetching registrations:', registrationError);
+        return res.status(400).json({
+            success: false,
+            error: registrationError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Format the response
+    const formattedData = {
+        total: registrations.length,
+        filtered: registrations.length,
+        items: registrations.map(reg => ({
+            // Registration data
+            id: reg.id,
+            prospectus_id: reg.prospectus_id,
+            services: reg.services,
+            init_amount: reg.init_amount,
+            accept_amount: reg.accept_amount,
+            discount: reg.discount,
+            total_amount: reg.total_amount,
+            accept_period: reg.accept_period,
+            pub_period: reg.pub_period,
+            status: reg.status,
+            month: reg.month,
+            year: reg.year,
+            created_at: reg.created_at,
+            
+            // Related data
+            prospectus: reg.prospectus,
+            bank_account: reg.bank_accounts,
+            transaction: reg.transactions
+        }))
+    };
+
+    res.status(200).json({
+        success: true,
+        data: formattedData,
         timestamp: new Date().toISOString()
     });
 };
@@ -236,6 +353,15 @@ exports.getRegistrationById = async (req, res) => {
 
 exports.createRegistration = async (req, res) => {
     const {
+        // Transaction details
+        transaction_type,
+        transaction_id: external_transaction_id, // rename to avoid confusion
+        amount,
+        transaction_date,
+        additional_info,
+        exec_id,
+        
+        // Registration details
         prospectus_id,
         services,
         init_amount,
@@ -247,18 +373,35 @@ exports.createRegistration = async (req, res) => {
         bank_id,
         status,
         month,
-        year
+        year,
+        notes
     } = req.body;
 
-    if (!prospectus_id || !init_amount || !total_amount || !status || !month || !year) {
+    // First, create the transaction
+    const { data: transactionData, error: transactionError } = await supabase
+        .from('transactions')
+        .insert([{
+            transaction_type,
+            transaction_id: external_transaction_id,
+            amount,
+            transaction_date,
+            additional_info,
+            exec_id
+        }])
+        .select()
+        .single();
+
+    if (transactionError) {
+        console.log('Error creating transaction:', transactionError);
         return res.status(400).json({
             success: false,
-            error: 'Missing required fields',
+            error: transactionError.message,
             timestamp: new Date().toISOString()
         });
     }
 
-    const { data, error } = await supabase
+    // Then, create the registration with the transaction ID
+    const { data: registrationData, error: registrationError } = await supabase
         .from('registration')
         .insert([{
             prospectus_id,
@@ -272,23 +415,34 @@ exports.createRegistration = async (req, res) => {
             bank_id,
             status,
             month,
-            year
+            year,
+            transaction_id: transactionData.id ,// Link to the created transaction
+            notes,
         }])
         .select()
         .single();
 
-    if (error) {
-        console.log('Error creating registration:', error);
+    if (registrationError) {
+        console.log('Error creating registration:', registrationError);
+        // You might want to delete the transaction if registration fails
+        await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', transactionData.id);
+
         return res.status(400).json({
             success: false,
-            error: error.message,
+            error: registrationError.message,
             timestamp: new Date().toISOString()
         });
     }
 
     res.status(201).json({
         success: true,
-        data,
+        data: {
+            registration: registrationData,
+            transaction: transactionData
+        },
         timestamp: new Date().toISOString()
     });
 };
