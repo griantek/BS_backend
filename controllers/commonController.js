@@ -298,7 +298,7 @@ exports.getAllRegistrations = async (req, res) => {
             month: reg.month,
             year: reg.year,
             created_at: reg.created_at,
-            
+
             // Related data
             prospectus: reg.prospectus,
             bank_account: reg.bank_accounts,
@@ -320,12 +320,14 @@ exports.getRegistrationById = async (req, res) => {
     const { data, error } = await supabase
         .from('registration')
         .select(`
-            *,
-            prospectus:prospectus_id(id, company_name),
-            bank_accounts:bank_id(id, bank_name)
+        *,
+        prospectus:prospectus_id(*),
+        bank_accounts:bank_id(*),
+        transactions(*)
         `)
         .eq('id', id)
         .single();
+
 
     if (error) {
         console.log('Error fetching registration:', error);
@@ -360,7 +362,7 @@ exports.createRegistration = async (req, res) => {
         transaction_date,
         additional_info,
         exec_id,
-        
+
         // Registration details
         prospectus_id,
         services,
@@ -416,7 +418,7 @@ exports.createRegistration = async (req, res) => {
             status,
             month,
             year,
-            transaction_id: transactionData.id ,// Link to the created transaction
+            transaction_id: transactionData.id,// Link to the created transaction
             notes,
         }])
         .select()
@@ -459,27 +461,166 @@ exports.createRegistration = async (req, res) => {
     });
 };
 
-exports.deleteRegistration = async (req, res) => {
+exports.updateRegistration = async (req, res) => {
     const { id } = req.params;
-    console.log(`Deleting registration with id: ${id}`);
+    console.log('Update request for registration:', id, req.body);
 
-    const { error } = await supabase
+    // First get the current registration to get the transaction_id
+    const { data: currentRegistration, error: fetchError } = await supabase
         .from('registration')
-        .delete()
-        .eq('id', id);
+        .select('transaction_id')
+        .eq('id', id)
+        .single();
 
-    if (error) {
-        console.log('Error deleting registration:', error);
+    if (fetchError || !currentRegistration) {
+        console.log('Error fetching registration:', fetchError);
+        return res.status(404).json({
+            success: false,
+            error: 'Registration not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Update the registration status to registered
+    const { data: registrationData, error: registrationError } = await supabase
+        .from('registration')
+        .update({
+            status: 'registered',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (registrationError) {
+        console.log('Error updating registration:', registrationError);
         return res.status(400).json({
             success: false,
-            error: error.message,
+            error: registrationError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Update the transaction with new details
+    const {
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        exec_id
+    } = req.body;
+
+    const { data: transactionData, error: transactionError } = await supabase
+        .from('transactions')
+        .update({
+            transaction_type,
+            transaction_id: external_transaction_id,
+            amount: parseFloat(amount),
+            transaction_date,
+            additional_info,
+            exec_id,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', currentRegistration.transaction_id)
+        .select()
+        .single();
+
+    if (transactionError) {
+        console.log('Error updating transaction:', transactionError);
+        return res.status(400).json({
+            success: false,
+            error: transactionError.message,
             timestamp: new Date().toISOString()
         });
     }
 
     res.status(200).json({
         success: true,
-        message: 'Registration deleted successfully',
+        data: {
+            registration: registrationData,
+            transaction: transactionData
+        },
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.deleteRegistration = async (req, res) => {
+    const { id } = req.params;
+    console.log(`Deleting registration with id: ${id}`);
+
+    // First get the registration to get transaction_id and prospectus_id
+    const { data: registration, error: fetchError } = await supabase
+        .from('registration')
+        .select('transaction_id, prospectus_id')
+        .eq('id', id)
+        .single();
+
+    if (fetchError) {
+        console.log('Error fetching registration:', fetchError);
+        return res.status(400).json({
+            success: false,
+            error: 'Error fetching registration details',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!registration) {
+        return res.status(404).json({
+            success: false,
+            error: 'Registration not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Delete the transaction first
+    if (registration.transaction_id) {
+        const { error: transactionError } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', registration.transaction_id);
+
+        if (transactionError) {
+            console.log('Error deleting transaction:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: 'Error deleting associated transaction',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    // Then delete the registration
+    const { error: registrationError } = await supabase
+        .from('registration')
+        .delete()
+        .eq('id', id);
+
+    if (registrationError) {
+        console.log('Error deleting registration:', registrationError);
+        return res.status(400).json({
+            success: false,
+            error: registrationError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Reset the prospectus isregistered status
+    if (registration.prospectus_id) {
+        const { error: prospectusError } = await supabase
+            .from('prospectus')
+            .update({ isregistered: false })
+            .eq('id', registration.prospectus_id);
+
+        if (prospectusError) {
+            console.log('Error updating prospectus:', prospectusError);
+            // Don't fail the request if this update fails
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Registration and associated transaction deleted successfully',
         timestamp: new Date().toISOString()
     });
 };
