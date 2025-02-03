@@ -633,8 +633,7 @@ exports.getAllDepartments = async (req, res) => {
     const { data, error } = await supabase
         .from('departments')
         .select(`
-            *,
-            executive:exec_id(id, username)
+            *
         `)
         .order('created_at', { ascending: false });
 
