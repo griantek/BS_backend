@@ -189,8 +189,8 @@ exports.getProspectusByExecutiveId = async (req, res) => {
     const { data, error } = await supabase
         .from('prospectus')
         .select('*')
-        .eq('executive_id', executiveId);
-
+        .eq('executive_id', executiveId)
+        .not('isregistered', 'eq', true);
     if (error) {
         return res.status(400).json({
             success: false,
@@ -199,7 +199,6 @@ exports.getProspectusByExecutiveId = async (req, res) => {
         });
     }
 
-    // console.log("data", data);
     res.status(200).json({
         success: true,
         data,

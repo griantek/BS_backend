@@ -437,6 +437,18 @@ exports.createRegistration = async (req, res) => {
         });
     }
 
+    // Update the prospectus isRegistered status
+    const { error: prospectusError } = await supabase
+        .from('prospectus')
+        .update({ isRegistered: true })
+        .eq('id', prospectus_id);
+
+    if (prospectusError) {
+        console.log('Error updating prospectus:', prospectusError);
+        // You might want to handle this error differently since the registration was successful
+        // Maybe just log it or send a notification but don't fail the request
+    }
+
     res.status(201).json({
         success: true,
         data: {
