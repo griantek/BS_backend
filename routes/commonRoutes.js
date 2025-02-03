@@ -11,7 +11,12 @@ const {
     deleteRegistration,
     getAllTransactions,
     createTransaction,
-    updateRegistration
+    updateRegistration,
+    getAllDepartments,
+    getDepartmentById,
+    createDepartment,
+    updateDepartment,
+    deleteDepartment
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -37,5 +42,11 @@ router.put('/registration/:id', auth, updateRegistration);
 router.get('/transactions/all', auth, getAllTransactions);
 router.post('/transactions/create', auth, createTransaction);
 
+// Department routes
+router.get('/departments/all', auth, getAllDepartments);
+router.get('/departments/:id', auth, getDepartmentById);
+router.post('/departments/create', auth, createDepartment);
+router.put('/departments/:id', auth, updateDepartment);
+router.delete('/departments/:id', auth, deleteDepartment);
 
 module.exports = router;

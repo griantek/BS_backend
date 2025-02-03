@@ -12,7 +12,7 @@ const generateToken = (executive) => {
 };
 
 exports.loginExecutive = async (req, res) => {
-  // console.log('Login Request body:', req.body);
+  console.log('Executing: loginExecutive');
   const { username, password } = req.body;
 
   const { data: executive, error } = await supabase
@@ -22,13 +22,11 @@ exports.loginExecutive = async (req, res) => {
     .single();
 
   if (error || !executive) {
-    // console.log('Login Error:', error || 'Executive not found');
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
   const isValidPassword = await bcrypt.compare(password, executive.password);
   if (!isValidPassword) {
-    // console.log('Login Error: Invalid password');
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
@@ -44,11 +42,11 @@ exports.loginExecutive = async (req, res) => {
     executive: executiveWithoutPassword
   };
   
-  // console.log('Login Success Response:', response);
   res.status(200).json(response);
 };
 
 exports.createExecutive = async (req, res) => {
+  console.log('Executing: createExecutive');
   const { username, password, email, role } = req.body;
 
   // Basic validation
@@ -82,7 +80,7 @@ exports.createExecutive = async (req, res) => {
 };
 
 exports.getAllExecutives = async (req, res) => {
-  // console.log('Get all executives',req.body);
+  console.log('Executing: getAllExecutives');
   const { data, error } = await supabase
     .from('executive')
     .select('id, username, email, role, created_at')  // Explicitly exclude password
@@ -96,7 +94,6 @@ exports.getAllExecutives = async (req, res) => {
     });
   }
   
-  // console.log('Get all executives response:', data);
   res.status(200).json({
     success: true,
     data,
@@ -106,191 +103,188 @@ exports.getAllExecutives = async (req, res) => {
 
 // Added prospectus-related functions
 exports.createProspectus = async (req, res) => {
-    // console.log('Request body:', req.body);
-    const {
-        clientEmail,
-        clientId,
-        clientName,
-        date,
-        department,
-        otherDepartment,
-        period,
-        phone,
-        proposedService,
-        regId,
-        requirement,
-        state,
-        techPerson,
-        notes,
-        nextFollowUp
-    } = req.body;
+  console.log('Executing: createProspectus');
+  const {
+    clientEmail,
+    clientId,
+    clientName,
+    date,
+    department,
+    otherDepartment,
+    period,
+    phone,
+    proposedService,
+    regId,
+    requirement,
+    state,
+    techPerson,
+    notes,
+    nextFollowUp
+  } = req.body;
 
-    const { data, error } = await supabase
-        .from('prospectus')
-        .insert([{
-            date,
-            email: clientEmail,
-            executive_id: clientId,
-            reg_id: regId,
-            client_name: clientName,
-            phone,
-            department: otherDepartment || department,
-            state,
-            tech_person: techPerson,
-            requirement,
-            proposed_service_period: period,
-            services: proposedService,
-            notes:notes,
-            next_follow_up: nextFollowUp
-        }])
-        .select();
+  const { data, error } = await supabase
+    .from('prospectus')
+    .insert([{
+      date,
+      email: clientEmail,
+      executive_id: clientId,
+      reg_id: regId,
+      client_name: clientName,
+      phone,
+      department: otherDepartment || department,
+      state,
+      tech_person: techPerson,
+      requirement,
+      proposed_service_period: period,
+      services: proposedService,
+      notes:notes,
+      next_follow_up: nextFollowUp
+    }])
+    .select();
 
-    if (error) {
-        console.log('Error response:', error);
-        return res.status(400).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    res.status(201).json({
-        success: true,
-        message: "Prospectus created successfully",
-        data: data[0],
-        timestamp: new Date().toISOString()
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "Prospectus created successfully",
+    data: data[0],
+    timestamp: new Date().toISOString()
+  });
 };
 
 exports.getProspectus = async (req, res) => {
-    const { data, error } = await supabase
-        .from('prospectus')
-        .select('*')
-        .order('created_at', { ascending: false });
+  console.log('Executing: getProspectus');
+  const { data, error } = await supabase
+    .from('prospectus')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-    if (error) {
-        return res.status(400).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    res.status(200).json({
-        success: true,
-        data,
-        timestamp: new Date().toISOString()
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
+  }
+
+  res.status(200).json({
+    success: true,
+    data,
+    timestamp: new Date().toISOString()
+  });
 };
 
 exports.getProspectusByExecutiveId = async (req, res) => {
-    const { executiveId } = req.params;
+  console.log('Executing: getProspectusByExecutiveId');
+  const { executiveId } = req.params;
 
-    const { data, error } = await supabase
-        .from('prospectus')
-        .select('*')
-        .eq('executive_id', executiveId)
-        .not('isregistered', 'eq', true);
-    if (error) {
-        return res.status(400).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    res.status(200).json({
-        success: true,
-        data,
-        timestamp: new Date().toISOString()
+  const { data, error } = await supabase
+    .from('prospectus')
+    .select('*')
+    .eq('executive_id', executiveId)
+    .not('isregistered', 'eq', true);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
+  }
+
+  res.status(200).json({
+    success: true,
+    data,
+    timestamp: new Date().toISOString()
+  });
 };
 
 exports.getProspectusByRegId = async (req, res) => {
-    // console.log('Request params:', req.params);
-    const { regId } = req.params;
+  console.log('Executing: getProspectusByRegId');
+  const { regId } = req.params;
 
-    const { data, error } = await supabase
-        .from('prospectus')
-        .select('*')
-        .eq('reg_id', regId)
-        .single();
+  const { data, error } = await supabase
+    .from('prospectus')
+    .select('*')
+    .eq('reg_id', regId)
+    .single();
 
-    if (error) {
-        return res.status(400).json({
-            success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-    // console.log("data", data);
-
-    res.status(200).json({
-        success: true,
-        data,
-        timestamp: new Date().toISOString()
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
     });
+  }
+
+  res.status(200).json({
+    success: true,
+    data,
+    timestamp: new Date().toISOString()
+  });
 };
 
 exports.getRegistrationsByExecutiveId = async (req, res) => {
-    const { executiveId } = req.params;
-    console.log(`Fetching registrations for executive: ${executiveId}`);
+  console.log('Executing: getRegistrationsByExecutiveId');
+  const { executiveId } = req.params;
 
-    // First get all prospectus IDs for this executive
-    const { data: prospectusData, error: prospectusError } = await supabase
-        .from('prospectus')
-        .select('id')
-        .eq('executive_id', executiveId);
+  // First get all prospectus IDs for this executive
+  const { data: prospectusData, error: prospectusError } = await supabase
+    .from('prospectus')
+    .select('id')
+    .eq('executive_id', executiveId);
 
-    if (prospectusError) {
-        console.log('Error fetching prospectus:', prospectusError);
-        return res.status(400).json({
-            success: false,
-            error: prospectusError.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    if (!prospectusData.length) {
-        return res.status(200).json({
-            success: true,
-            data: [],
-            message: 'No prospectus found for this executive',
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    // Get all prospectus IDs
-    const prospectusIds = prospectusData.map(p => p.id);
-
-    // Then get all registrations for these prospectus IDs
-    const { data: registrations, error: registrationError } = await supabase
-        .from('registration')
-        .select(`
-            *,
-            prospectus:prospectus_id(*),
-            bank_accounts:bank_id(*),
-            transactions:transaction_id(
-                *,
-                executive:exec_id(*)
-            )
-        `)
-        .in('prospectus_id', prospectusIds)
-        .order('created_at', { ascending: false });
-      
-
-    if (registrationError) {
-        console.log('Error fetching registrations:', registrationError);
-        return res.status(400).json({
-            success: false,
-            error: registrationError.message,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    res.status(200).json({
-        success: true,
-        data: registrations,
-        timestamp: new Date().toISOString()
+  if (prospectusError) {
+    return res.status(400).json({
+      success: false,
+      error: prospectusError.message,
+      timestamp: new Date().toISOString()
     });
+  }
+
+  if (!prospectusData.length) {
+    return res.status(200).json({
+      success: true,
+      data: [],
+      message: 'No prospectus found for this executive',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Get all prospectus IDs
+  const prospectusIds = prospectusData.map(p => p.id);
+
+  // Then get all registrations for these prospectus IDs
+  const { data: registrations, error: registrationError } = await supabase
+    .from('registration')
+    .select(`
+      *,
+      prospectus:prospectus_id(*),
+      bank_accounts:bank_id(*),
+      transactions:transaction_id(
+        *,
+        executive:exec_id(*)
+      )
+    `)
+    .in('prospectus_id', prospectusIds)
+    .order('created_at', { ascending: false });
+
+  if (registrationError) {
+    return res.status(400).json({
+      success: false,
+      error: registrationError.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: registrations,
+    timestamp: new Date().toISOString()
+  });
 };

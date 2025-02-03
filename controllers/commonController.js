@@ -4,7 +4,7 @@ const supabase = require('../supabaseClient');
 // Bank Account Controllers
 //====================================
 exports.getAllBankAccounts = async (req, res) => {
-    console.log('Fetching bank accounts');
+    console.log('Executing: getAllBankAccounts');
 
     const { data, error } = await supabase
         .from('bank_accounts')
@@ -20,7 +20,6 @@ exports.getAllBankAccounts = async (req, res) => {
         });
     }
 
-    // console.log(`Found ${data?.length || 0} bank accounts`);
     res.status(200).json({
         success: true,
         data,
@@ -29,8 +28,8 @@ exports.getAllBankAccounts = async (req, res) => {
 };
 
 exports.getBankAccountById = async (req, res) => {
+    console.log('Executing: getBankAccountById');
     const { id } = req.params;
-    console.log(`Fetching bank account with id: ${id}`);
 
     const { data, error } = await supabase
         .from('bank_accounts')
@@ -66,7 +65,7 @@ exports.getBankAccountById = async (req, res) => {
 // Services Controllers
 //====================================
 exports.getAllServices = async (req, res) => {
-    console.log('Fetching all services');
+    console.log('Executing: getAllServices');
 
     const { data, error } = await supabase
         .from('services')
@@ -82,7 +81,6 @@ exports.getAllServices = async (req, res) => {
         });
     }
 
-    // console.log(`Found ${data?.length || 0} services`);
     res.status(200).json({
         success: true,
         data,
@@ -91,8 +89,8 @@ exports.getAllServices = async (req, res) => {
 };
 
 exports.getServiceById = async (req, res) => {
+    console.log('Executing: getServiceById');
     const { id } = req.params;
-    console.log(`Fetching service with id: ${id}`);
 
     const { data, error } = await supabase
         .from('services')
@@ -125,8 +123,8 @@ exports.getServiceById = async (req, res) => {
 };
 
 exports.createService = async (req, res) => {
+    console.log('Executing: createService');
     const { service_name, service_type, description, fee, min_duration, max_duration } = req.body;
-    console.log('Creating new service');
 
     if (!service_name || !fee) {
         return res.status(400).json({
@@ -169,6 +167,7 @@ exports.createService = async (req, res) => {
 // Transaction Controllers
 //====================================
 exports.createTransaction = async (req, res) => {
+    console.log('Executing: createTransaction');
     const {
         transaction_type,
         transaction_id,
@@ -216,6 +215,7 @@ exports.createTransaction = async (req, res) => {
 };
 
 exports.getAllTransactions = async (req, res) => {
+    console.log('Executing: getAllTransactions');
     const { data, error } = await supabase
         .from('transactions')
         .select(`
@@ -244,7 +244,7 @@ exports.getAllTransactions = async (req, res) => {
 // Modified Registration Controllers
 //====================================
 exports.getAllRegistrations = async (req, res) => {
-    console.log('Fetching all registrations with complete data');
+    console.log('Executing: getAllRegistrations');
 
     // First get all registrations with their related data
     const { data: registrations, error: registrationError } = await supabase
@@ -314,8 +314,8 @@ exports.getAllRegistrations = async (req, res) => {
 };
 
 exports.getRegistrationById = async (req, res) => {
+    console.log('Executing: getRegistrationById');
     const { id } = req.params;
-    console.log(`Fetching registration with id: ${id}`);
 
     const { data, error } = await supabase
         .from('registration')
@@ -354,6 +354,7 @@ exports.getRegistrationById = async (req, res) => {
 };
 
 exports.createRegistration = async (req, res) => {
+    console.log('Executing: createRegistration');
     const {
         // Transaction details
         transaction_type,
@@ -462,8 +463,8 @@ exports.createRegistration = async (req, res) => {
 };
 
 exports.updateRegistration = async (req, res) => {
+    console.log('Executing: updateRegistration');
     const { id } = req.params;
-    console.log('Update request for registration:', id, req.body);
 
     // First get the current registration to get the transaction_id
     const { data: currentRegistration, error: fetchError } = await supabase
@@ -544,8 +545,8 @@ exports.updateRegistration = async (req, res) => {
 };
 
 exports.deleteRegistration = async (req, res) => {
+    console.log('Executing: deleteRegistration');
     const { id } = req.params;
-    console.log(`Deleting registration with id: ${id}`);
 
     // First get the registration to get transaction_id and prospectus_id
     const { data: registration, error: fetchError } = await supabase
@@ -619,6 +620,167 @@ exports.deleteRegistration = async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Registration and associated transaction deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
+
+//====================================
+// Department Controllers
+//====================================
+exports.getAllDepartments = async (req, res) => {
+    console.log('Executing: getAllDepartments');
+
+    const { data, error } = await supabase
+        .from('departments')
+        .select(`
+            *,
+            executive:exec_id(id, username)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.log('Error fetching departments:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.getDepartmentById = async (req, res) => {
+    console.log('Executing: getDepartmentById');
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+        .from('departments')
+        .select(`
+            *,
+            executive:exec_id(id, username)
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.log('Error fetching department:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            error: 'Department not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.createDepartment = async (req, res) => {
+    console.log('Executing: createDepartment');
+    const { name, exec_id } = req.body;
+
+    if (!name) {
+        return res.status(400).json({
+            success: false,
+            error: 'Department name is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    const { data, error } = await supabase
+        .from('departments')
+        .insert([{
+            name,
+            exec_id: exec_id || 'supAdmin'
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error creating department:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.updateDepartment = async (req, res) => {
+    console.log('Executing: updateDepartment');
+    const { id } = req.params;
+    const { name, exec_id } = req.body;
+
+    const { data, error } = await supabase
+        .from('departments')
+        .update({
+            name,
+            exec_id: exec_id || 'supAdmin',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error updating department:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.deleteDepartment = async (req, res) => {
+    console.log('Executing: deleteDepartment');
+    const { id } = req.params;
+
+    const { error } = await supabase
+        .from('departments')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.log('Error deleting department:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Department deleted successfully',
         timestamp: new Date().toISOString()
     });
 };
