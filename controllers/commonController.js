@@ -485,8 +485,7 @@ exports.updateRegistration = async (req, res) => {
     const { data: registrationData, error: registrationError } = await supabase
         .from('registration')
         .update({
-            status: 'registered',
-            updated_at: new Date().toISOString()
+            status: 'registered'
         })
         .eq('id', id)
         .select()
@@ -520,7 +519,6 @@ exports.updateRegistration = async (req, res) => {
             transaction_date,
             additional_info,
             exec_id,
-            updated_at: new Date().toISOString()
         })
         .eq('id', currentRegistration.transaction_id)
         .select()
