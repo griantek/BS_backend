@@ -440,7 +440,7 @@ exports.createRegistration = async (req, res) => {
     // Update the prospectus isRegistered status
     const { error: prospectusError } = await supabase
         .from('prospectus')
-        .update({ isRegistered: true })
+        .update({ isregistered: true })
         .eq('id', prospectus_id);
 
     if (prospectusError) {
