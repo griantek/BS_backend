@@ -65,17 +65,6 @@ Backend API service for Graintek business management system built with Node.js, 
 - View bank account by ID
 - Used for payment tracking in registrations
 
-### Department Management
-- Create new departments
-- View all departments
-- View department by ID
-- Update department details
-- Delete departments
-- Track:
-  - Department name
-  - Created/Updated timestamps
-  - Executive association
-
 ## API Endpoints
 
 ### Common Routes
@@ -90,13 +79,6 @@ Backend API service for Graintek business management system built with Node.js, 
 - DELETE `/api/common/registration/:id` - Delete registration
 - GET `/api/common/transactions/all` - Get all transactions
 - POST `/api/common/transactions/create` - Create new transaction
-
-// Add new department routes
-- GET `/api/common/departments/all` - Get all departments
-- GET `/api/common/departments/:id` - Get department by ID
-- POST `/api/common/departments/create` - Create new department
-- PUT `/api/common/departments/:id` - Update department
-- DELETE `/api/common/departments/:id` - Delete department
 
 ### SuperAdmin Routes
 - POST `/api/superadmin/login` - SuperAdmin login
@@ -158,7 +140,6 @@ Backend API service for Graintek business management system built with Node.js, 
 - registration
 - bank_accounts
 - transactions
-- departments
 
 ## Error Handling
 - Standardized error responses
