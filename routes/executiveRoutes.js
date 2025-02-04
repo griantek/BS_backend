@@ -7,7 +7,8 @@ const {
     getProspectus,
     getProspectusByExecutiveId,
     getProspectusByRegId,
-    getRegistrationsByExecutiveId
+    getRegistrationsByExecutiveId,
+    updateProspectus
 } = require('../controllers/executiveController');
 const auth = require('../middleware/auth');
 
@@ -23,6 +24,7 @@ router.post('/prospectus/create', auth, createProspectus);
 router.get('/prospectus/all', auth, getProspectus);
 router.get('/prospectus/:executiveId', auth, getProspectusByExecutiveId);
 router.get('/prospectus/register/:regId', auth, getProspectusByRegId);
+router.put('/prospectus/:id', auth, updateProspectus); // Add this new route
 
 // Add new registration route
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);

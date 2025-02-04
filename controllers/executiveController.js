@@ -288,3 +288,67 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
     timestamp: new Date().toISOString()
   });
 };
+
+exports.updateProspectus = async (req, res) => {
+    console.log('Executing: updateProspectus');
+    const { id } = req.params;
+    const {
+        clientEmail,
+        clientName,
+        date,
+        department,
+        otherDepartment,
+        period,
+        phone,
+        proposedService,
+        requirement,
+        state,
+        techPerson,
+        notes,
+        nextFollowUp
+    } = req.body;
+
+    const { data, error } = await supabase
+        .from('prospectus')
+        .update({
+            date,
+            email: clientEmail,
+            client_name: clientName,
+            phone:phone,
+            department: otherDepartment || department,
+            state:state,
+            tech_person: techPerson,
+            requirement:requirement,
+            proposed_service_period: period,
+            services: proposedService,
+            notes:notes,
+            next_follow_up: nextFollowUp,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error updating prospectus:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            error: 'Prospectus not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
