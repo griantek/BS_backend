@@ -16,8 +16,7 @@ const {
     getDepartmentById,
     createDepartment,
     updateDepartment,
-    deleteDepartment,
-    approveRegistration
+    deleteDepartment
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -38,7 +37,6 @@ router.get('/registration/:id', auth, getRegistrationById);
 router.post('/registration/create', auth, createRegistration);
 router.delete('/registration/:id', auth, deleteRegistration);
 router.put('/registration/:id', auth, updateRegistration);
-router.put('/registration/approve/:id', auth, approveRegistration);
 
 // Transaction routes
 router.get('/transactions/all', auth, getAllTransactions);

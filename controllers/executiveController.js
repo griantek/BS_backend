@@ -162,7 +162,14 @@ exports.getProspectus = async (req, res) => {
   console.log('Executing: getProspectus');
   const { data, error } = await supabase
     .from('prospectus')
-    .select('*')
+    .select(`
+      *,
+      executive:executive_id (
+        id,
+        username,
+        email
+      )
+    `)
     .order('created_at', { ascending: false });
 
   if (error) {
