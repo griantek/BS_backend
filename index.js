@@ -9,7 +9,13 @@ const commonRoutes = require('./routes/commonRoutes');
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "https://bs-frontend-two.vercel.app", // Allow only your frontend
+  methods: "GET, POST, PUT, DELETE, OPTIONS",
+  allowedHeaders: "Content-Type, Authorization",
+  credentials: true // Allow cookies & authentication headers
+}));
+
 app.use(bodyParser.json());
 
 // Add health check route before other routes
