@@ -159,3 +159,163 @@ exports.getAllServices = async (req, res) => {
         timestamp: new Date().toISOString()
     });
 };
+
+//====================================
+// Role Management Controllers
+//====================================
+
+exports.getAllRoles = async (req, res) => {
+    console.log('Executing: getAllRoles');
+
+    const { data, error } = await supabase
+        .from('roles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.log('Error fetching roles:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.getRoleById = async (req, res) => {
+    console.log('Executing: getRoleById');
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+        .from('roles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error) {
+        console.log('Error fetching role:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            error: 'Role not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.createRole = async (req, res) => {
+    console.log('Executing: createRole');
+    const { name, description, permissions } = req.body;
+
+    if (!name) {
+        return res.status(400).json({
+            success: false,
+            error: 'Role name is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    const { data, error } = await supabase
+        .from('roles')
+        .insert([{
+            name,
+            description,
+            permissions,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error creating role:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.updateRole = async (req, res) => {
+    console.log('Executing: updateRole');
+    const { id } = req.params;
+    const { name, description, permissions } = req.body;
+
+    const { data, error } = await supabase
+        .from('roles')
+        .update({
+            name,
+            description,
+            permissions,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error updating role:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.deleteRole = async (req, res) => {
+    console.log('Executing: deleteRole');
+    const { id } = req.params;
+
+    const { error } = await supabase
+        .from('roles')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.log('Error deleting role:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Role deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
