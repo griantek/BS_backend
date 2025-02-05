@@ -246,15 +246,20 @@ exports.getAllTransactions = async (req, res) => {
 exports.getAllRegistrations = async (req, res) => {
     console.log('Executing: getAllRegistrations');
 
-    // First get all registrations with their related data
     const { data: registrations, error: registrationError } = await supabase
         .from('registration')
         .select(`
             *,
             prospectus:prospectus_id(
                 id, 
+                executive_id,
                 client_name,
-                reg_id
+                reg_id,
+                executive:executive_id(
+                    id,
+                    username,
+                    email
+                )
             ),
             bank_accounts:bank_id(
                 bank,
