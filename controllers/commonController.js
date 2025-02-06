@@ -163,6 +163,82 @@ exports.createService = async (req, res) => {
     });
 };
 
+exports.updateService = async (req, res) => {
+    console.log('Executing: updateService');
+    const { id } = req.params;
+    const { 
+        service_name, 
+        service_type, 
+        description, 
+        fee, 
+        min_duration, 
+        max_duration 
+    } = req.body;
+
+    const { data, error } = await supabase
+        .from('services')
+        .update({
+            service_name,
+            service_type,
+            description,
+            fee,
+            min_duration,
+            max_duration,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error updating service:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            error: 'Service not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.deleteService = async (req, res) => {
+    console.log('Executing: deleteService');
+    const { id } = req.params;
+
+    const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.log('Error deleting service:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Service deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
+
 //====================================
 // Transaction Controllers
 //====================================

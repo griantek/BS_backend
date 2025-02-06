@@ -5,6 +5,8 @@ const {
     getAllServices,
     getServiceById,
     createService,
+    updateService,
+    deleteService,
     getAllRegistrations,
     getRegistrationById,
     createRegistration,
@@ -30,6 +32,8 @@ router.get('/bank-accounts/:id', auth, getBankAccountById);
 router.get('/services/all', auth, getAllServices);
 router.get('/services/:id', auth, getServiceById);
 router.post('/services/create', auth, createService);
+router.put('/services/:id', auth, updateService);
+router.delete('/services/:id', auth, deleteService); // Add this new route
 
 // Registration routes
 router.get('/registration/all', auth, getAllRegistrations);
