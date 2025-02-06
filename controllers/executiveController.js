@@ -359,3 +359,66 @@ exports.updateProspectus = async (req, res) => {
         timestamp: new Date().toISOString()
     });
 };
+
+exports.updateExecutive = async (req, res) => {
+    console.log('Executing: updateExecutive');
+    const { id } = req.params;
+    const { username, email, role, password } = req.body;
+
+    try {
+        // Prepare update object
+        const updateData = {
+            username,
+            email,
+            role,
+            updated_at: new Date().toISOString()
+        };
+
+        // If password is provided, hash it
+        if (password) {
+            updateData.password = await bcrypt.hash(
+                password, 
+                parseInt(process.env.BCRYPT_SALT_ROUNDS)
+            );
+        }
+
+        // Update executive
+        const { data, error } = await supabase
+            .from('executive')
+            .update(updateData)
+            .eq('id', id)
+            .select('id, username, email, role, created_at, updated_at') // Exclude password from response
+            .single();
+
+        if (error) {
+            console.log('Error updating executive:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Executive not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.log('Server error updating executive:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Server error',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
