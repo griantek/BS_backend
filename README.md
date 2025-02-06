@@ -4,68 +4,40 @@ Backend API service for Graintek business management system built with Node.js, 
 
 ## Features
 
-### Authentication
-- JWT-based authentication system
+### Authentication & Authorization
+- JWT-based authentication
 - Role-based access control (SuperAdmin, Executive)
-- Secure password hashing using bcrypt
+- Secure password hashing with bcrypt
+- Protected routes with middleware
 
 ### User Management
 #### SuperAdmin
 - Create and login superadmin accounts
-- Manage services offered
-- Access to all system features
+- Manage roles and permissions
+- Manage all system features
 
 #### Executive
 - Create and login executive accounts
-- Create and view prospectus
-- View services
+- Create and manage prospectus
+- View assigned roles and permissions
 - Profile management
 
-### Prospectus Management
-- Create new prospectus
-- View all prospectus
-- Filter prospectus by executive ID
-- Search prospectus by registration ID
-- Track client requirements and proposed services
-
-### Services Management
-- Create new services
-- View all available services
-- Service details include:
-  - Service name
-  - Service type
-  - Description
-  - Fee
-  - Duration (min/max)
-
-### Transaction Management
-- Create new transactions
-- View all transactions
-- Track transaction details:
-  - Transaction type (UPI, Bank Transfer, Card, Cash, Cheque, Wallet)
-  - Transaction ID
-  - Amount
-  - Date
-  - Additional info (UPI ID, Account details, etc.)
-  - Executive reference
-
-### Registration Management
-- Create new registrations with integrated transaction tracking
-- View all registrations
-- View registration by ID
-- Delete registrations
-- Track registration status and payments
-- Link registrations to:
-  - Prospectus
-  - Bank accounts
-  - Transactions
-
-### Bank Account Management
-- View all bank accounts
-- View bank account by ID
-- Used for payment tracking in registrations
+### Core Features
+- Bank Account Management (CRUD)
+- Services Management (CRUD)
+- Department Management (CRUD)
+- Prospectus Management
+- Registration System
+- Transaction Tracking
+- Role Management
 
 ## API Endpoints
+
+### Authentication Routes
+- POST `/api/superadmin/login` - SuperAdmin login
+- POST `/api/superadmin/create` - Create new SuperAdmin
+- POST `/api/executive/login` - Executive login
+- POST `/api/executive/create` - Create new executive
 
 ### Common Routes
 - GET `/api/common/bank-accounts/all` - Get all bank accounts

@@ -427,7 +427,7 @@ exports.createTransaction = async (req, res) => {
         exec_id
     } = req.body;
 
-    if (!transaction_type || !transaction_id || !amount || !transaction_date) {
+    if (!transaction_type || !transaction_id || !transaction_date) {
         return res.status(400).json({
             success: false,
             error: 'Missing required transaction fields',
@@ -440,7 +440,7 @@ exports.createTransaction = async (req, res) => {
         .insert([{
             transaction_type,
             transaction_id,
-            amount,
+            amount: amount || 0, // Set default to 0 if amount is null
             transaction_date,
             additional_info,
             exec_id
@@ -660,7 +660,7 @@ exports.createRegistration = async (req, res) => {
         .insert([{
             transaction_type,
             transaction_id: external_transaction_id,
-            amount,
+            amount: amount || 0, // Set default to 0 if amount is null
             transaction_date,
             additional_info,
             exec_id
@@ -790,7 +790,7 @@ exports.updateRegistration = async (req, res) => {
         .update({
             transaction_type,
             transaction_id: external_transaction_id,
-            amount: parseFloat(amount),
+            amount: parseFloat(amount || 0), // Set default to 0 if amount is null
             transaction_date,
             additional_info,
             exec_id,
