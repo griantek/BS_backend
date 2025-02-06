@@ -81,22 +81,41 @@ exports.createExecutive = async (req, res) => {
 
 exports.getAllExecutives = async (req, res) => {
   console.log('Executing: getAllExecutives');
-  const { data, error } = await supabase
+  
+  // First get all executives with their roles
+  const { data: executives, error: execError } = await supabase
     .from('executive')
-    .select('id, username, email, role, created_at')  // Explicitly exclude password
+    .select(`
+      *,
+      role_details:roles!role(
+        id,
+        name,
+        description,
+        permissions
+      )
+    `)
     .order('created_at', { ascending: false });
 
-  if (error) {
+  if (execError) {
+    console.log('Error fetching executives:', execError);
     return res.status(400).json({
       success: false,
-      error: error.message,
+      error: execError.message,
       timestamp: new Date().toISOString()
     });
   }
-  
+
+  // Format response and remove sensitive data
+  const formattedData = executives.map(executive => ({
+    ...executive,
+    role_name: executive.role_details?.name || 'No Role Assigned',
+    role_permissions: executive.role_details?.permissions || {},
+    password: undefined // Remove password from response
+  }));
+
   res.status(200).json({
     success: true,
-    data,
+    data: formattedData,
     timestamp: new Date().toISOString()
   });
 };
