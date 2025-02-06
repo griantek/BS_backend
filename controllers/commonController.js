@@ -61,6 +61,180 @@ exports.getBankAccountById = async (req, res) => {
     });
 };
 
+exports.createBankAccount = async (req, res) => {
+    console.log('Executing: createBankAccount');
+    const { 
+        account_name,
+        account_holder_name,
+        account_number,
+        ifsc_code,
+        account_type,
+        bank,
+        upi_id,
+        branch
+    } = req.body;
+
+    // Validate required fields
+    if (!account_name || !account_holder_name || !account_number || !ifsc_code || !bank) {
+        return res.status(400).json({
+            success: false,
+            error: 'Account name, holder name, account number, IFSC code, and bank are required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Validate account type if provided
+    if (account_type && !['Savings', 'Current', 'Other'].includes(account_type)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Account type must be Savings, Current, or Other',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    const { data, error } = await supabase
+        .from('bank_accounts')
+        .insert([{
+            account_name,
+            account_holder_name,
+            account_number,
+            ifsc_code,
+            account_type,
+            bank,
+            upi_id,
+            branch
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error creating bank account:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(201).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.updateBankAccount = async (req, res) => {
+    console.log('Executing: updateBankAccount');
+    const { id } = req.params;
+    const { 
+        account_name,
+        account_holder_name,
+        account_number,
+        ifsc_code,
+        account_type,
+        bank,
+        upi_id,
+        branch
+    } = req.body;
+
+    // Validate account type if provided
+    if (account_type && !['Savings', 'Current', 'Other'].includes(account_type)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Account type must be Savings, Current, or Other',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    const { data, error } = await supabase
+        .from('bank_accounts')
+        .update({
+            account_name,
+            account_holder_name,
+            account_number,
+            ifsc_code,
+            account_type,
+            bank,
+            upi_id,
+            branch,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.log('Error updating bank account:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            error: 'Bank account not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.deleteBankAccount = async (req, res) => {
+    console.log('Executing: deleteBankAccount');
+    const { id } = req.params;
+
+    // First check if bank account is used in any registrations
+    const { data: registrations, error: checkError } = await supabase
+        .from('registration')
+        .select('id')
+        .eq('bank_id', id);
+
+    if (checkError) {
+        console.log('Error checking registrations:', checkError);
+        return res.status(400).json({
+            success: false,
+            error: 'Error checking for linked registrations',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (registrations && registrations.length > 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Cannot delete bank account as it is linked to registrations',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    const { error } = await supabase
+        .from('bank_accounts')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.log('Error deleting bank account:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Bank account deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
+
 //====================================
 // Services Controllers
 //====================================

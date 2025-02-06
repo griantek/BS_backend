@@ -18,7 +18,10 @@ const {
     getDepartmentById,
     createDepartment,
     updateDepartment,
-    deleteDepartment
+    deleteDepartment,
+    createBankAccount,
+    updateBankAccount,
+    deleteBankAccount
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -27,6 +30,9 @@ const router = express.Router();
 // Bank account routes
 router.get('/bank-accounts/all', auth, getAllBankAccounts);
 router.get('/bank-accounts/:id', auth, getBankAccountById);
+router.post('/bank-accounts/create', auth, createBankAccount);
+router.put('/bank-accounts/:id', auth, updateBankAccount);
+router.delete('/bank-accounts/:id', auth, deleteBankAccount);
 
 // Service routes
 router.get('/services/all', auth, getAllServices);
