@@ -19,18 +19,20 @@ exports.loginSuperAdmin = async (req, res) => {
         .eq('username', username)
         .single();
 
+    // When username is not found or supabase error
     if (error || !admin) {
         return res.status(401).json({
             success: false,
-            error: 'Invalid credentials'
+            error: 'Username not found'
         });
     }
 
+    // When password doesn't match
     const isValidPassword = await bcrypt.compare(password, admin.password);
     if (!isValidPassword) {
         return res.status(401).json({
             success: false,
-            error: 'Invalid credentials'
+            error: 'Incorrect password'
         });
     }
 
