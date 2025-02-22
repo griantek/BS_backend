@@ -6,6 +6,7 @@ const cors = require('cors');
 const executiveRoutes = require('./routes/executiveRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
 const commonRoutes = require('./routes/commonRoutes');
+const editorRoutes = require('./routes/editorRoutes');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.get('/test', (req, res) => {
 app.use('/api/executive', executiveRoutes); // Keep original prospectus route path but use executive router
 app.use('/api/superadmin', superAdminRoutes);  // Only this route for both superadmin and services
 app.use('/api/common', commonRoutes);  // Changed from finance to common
+app.use('/api/editor', editorRoutes); // Add editor routes
 
 const PORT = process.env.PORT || 5000;
 

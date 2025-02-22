@@ -15,34 +15,108 @@ exports.loginExecutive = async (req, res) => {
   console.log('Executing: loginExecutive');
   const { username, password } = req.body;
 
-  const { data: executive, error } = await supabase
-    .from('executive')
-    .select('*')
-    .eq('username', username)
-    .single();
+  try {
+    console.log('Step 1: Fetching executive details');
+    // First query: Get executive basic details
+    const { data: executive, error: execError } = await supabase
+      .from('executive')
+      .select('*')
+      .eq('username', username)
+      .single();
 
-  if (error || !executive) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+    if (execError) {
+      console.error('Database error fetching executive:', execError);
+      return res.status(500).json({
+        success: false,
+        error: 'Database error occurred'
+      });
+    }
+
+    if (!executive) {
+      console.log('No executive found with username:', username);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, executive.password);
+    if (!isValidPassword) {
+      console.log('Invalid password for username:', username);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    console.log('Step 2: Fetching role details');
+    // Second query: Get role details
+    const { data: roleDetails, error: roleError } = await supabase
+      .from('roles')
+      .select('*')
+      .eq('id', executive.role)
+      .single();
+
+    if (roleError) {
+      console.error('Error fetching role details:', roleError);
+      return res.status(500).json({
+        success: false,
+        error: 'Error fetching role details'
+      });
+    }
+
+    console.log('Step 3: Fetching permissions');
+    // Third query: Get permissions details
+    let permissionDetails = [];
+    if (roleDetails?.permissions) {
+      const { data: permissions, error: permError } = await supabase
+        .from('permissions')
+        .select('*')
+        .in('id', roleDetails.permissions);
+
+      if (!permError) {
+        permissionDetails = permissions;
+      } else {
+        console.error('Error fetching permissions:', permError);
+      }
+    }
+
+    // Create token
+    const token = generateToken(executive);
+
+    // Format the response
+    const response = {
+      success: true,
+      token,
+      executive: {
+        id: executive.id,
+        username: executive.username,
+        email: executive.email,
+        entity_type: executive.entity_type || 'Executive',
+        role: {
+          id: roleDetails?.id,
+          name: roleDetails?.name || 'No Role',
+          description: roleDetails?.description,
+          permissions: permissionDetails.map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description
+          }))
+        },
+        created_at: executive.created_at,
+        updated_at: executive.updated_at
+      }
+    };
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Unexpected error during login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred during login'
+    });
   }
-
-  const isValidPassword = await bcrypt.compare(password, executive.password);
-  if (!isValidPassword) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  // Create token
-  const token = generateToken(executive);
-
-  // Remove password from executive object before sending
-  const { password: _, ...executiveWithoutPassword } = executive;
-
-  const response = {
-    success: true,
-    token,
-    executive: executiveWithoutPassword
-  };
-  
-  res.status(200).json(response);
 };
 
 exports.createExecutive = async (req, res) => {
