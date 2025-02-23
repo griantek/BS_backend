@@ -1,5 +1,12 @@
 const express = require('express');
-const { loginEditor } = require('../controllers/editorController');
+const { 
+    loginEditor,
+    getAllJournalData,
+    getJournalDataById,
+    createJournalData,
+    updateJournalData,
+    deleteJournalData
+} = require('../controllers/editorController');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,9 +14,11 @@ const router = express.Router();
 // Public routes
 router.post('/login', loginEditor);
 
-// Protected routes (add these later)
-// router.get('/profile', auth, getEditorProfile);
-// router.put('/profile', auth, updateEditorProfile);
-// etc...
+// Journal Data routes
+router.get('/journal-data/all',  getAllJournalData);
+router.get('/journal-data/:id', auth, getJournalDataById);
+router.post('/journal-data/create', auth, createJournalData);
+router.put('/journal-data/:id', auth, updateJournalData);
+router.delete('/journal-data/:id', auth, deleteJournalData);
 
 module.exports = router;

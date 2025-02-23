@@ -16,7 +16,6 @@ exports.loginExecutive = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    console.log('Step 1: Fetching executive details');
     // First query: Get executive basic details
     const { data: executive, error: execError } = await supabase
       .from('executive')
@@ -50,7 +49,6 @@ exports.loginExecutive = async (req, res) => {
       });
     }
 
-    console.log('Step 2: Fetching role details');
     // Second query: Get role details
     const { data: roleDetails, error: roleError } = await supabase
       .from('roles')
@@ -65,8 +63,6 @@ exports.loginExecutive = async (req, res) => {
         error: 'Error fetching role details'
       });
     }
-
-    console.log('Step 3: Fetching permissions');
     // Third query: Get permissions details
     let permissionDetails = [];
     if (roleDetails?.permissions) {

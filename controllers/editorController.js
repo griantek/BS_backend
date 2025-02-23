@@ -84,4 +84,259 @@ exports.loginEditor = async (req, res) => {
   res.status(200).json(response);
 };
 
+// Journal Data CRUD Operations
+exports.getAllJournalData = async (req, res) => {
+    console.log('Executing: getAllJournalData');
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                executive:applied_person(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getJournalDataById = async (req, res) => {
+    console.log('Executing: getJournalDataById');
+    const { id } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                executive:applied_person(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.createJournalData = async (req, res) => {
+    console.log('Executing: createJournalData');
+    const {
+        prospectus_id,
+        client_name,
+        requirement,
+        personal_email,
+        applied_person,
+        journal_name,
+        status,
+        journal_link,
+        username,
+        password,
+        orcid_username1,
+        password1,
+        paper_title
+    } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .insert([{
+                prospectus_id,
+                client_name,
+                requirement,
+                personal_email,
+                applied_person,
+                journal_name,
+                status,
+                journal_link,
+                username,
+                password,
+                orcid_username1,
+                password1,
+                paper_title
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error creating journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.updateJournalData = async (req, res) => {
+    console.log('Executing: updateJournalData');
+    const { id } = req.params;
+    const updateData = { ...req.body, updated_at: new Date().toISOString() };
+
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error updating journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.deleteJournalData = async (req, res) => {
+    console.log('Executing: deleteJournalData');
+    const { id } = req.params;
+
+    try {
+        const { error } = await supabase
+            .from('journal_data')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            message: 'Journal data deleted successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error deleting journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+// Alternative version getting data from prospectus table
+/*
+exports.createJournalDataFromProspectus = async (req, res) => {
+    console.log('Executing: createJournalDataFromProspectus');
+    const { prospectus_id, journal_name, status, journal_link, ...otherFields } = req.body;
+
+    try {
+        // First get prospectus data
+        const { data: prospectus, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select('client_name, requirement, email, executive_id')
+            .eq('id', prospectus_id)
+            .single();
+
+        if (prospectusError) throw prospectusError;
+        if (!prospectus) throw new Error('Prospectus not found');
+
+        // Create journal data with prospectus information
+        const { data, error } = await supabase
+            .from('journal_data')
+            .insert([{
+                prospectus_id,
+                client_name: prospectus.client_name,
+                requirement: prospectus.requirement,
+                personal_email: prospectus.email,
+                applied_person: prospectus.executive_id,
+                journal_name,
+                status,
+                journal_link,
+                ...otherFields
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error creating journal data:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+*/
+
 // Add other editor-specific functions here...
