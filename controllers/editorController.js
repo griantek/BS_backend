@@ -1,6 +1,7 @@
 const supabase = require('../supabaseClient');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { decryptText, encryptText } = require('../utils/encryption');
 
 // Generate JWT Token
 const generateToken = (editor) => {
@@ -102,7 +103,7 @@ exports.getAllJournalData = async (req, res) => {
                     reg_id
                 )
             `)
-            .order('id', { ascending: true }); // Changed to order by id descending
+            .order('id', { ascending: true });
 
         if (error) throw error;
 
@@ -126,7 +127,7 @@ exports.getJournalDataById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const { data, error } = await supabase
+        const { data: journal, error } = await supabase
             .from('journal_data')
             .select(`
                 *,
@@ -144,7 +145,7 @@ exports.getJournalDataById = async (req, res) => {
             .single();
 
         if (error) throw error;
-        if (!data) {
+        if (!journal) {
             return res.status(404).json({
                 success: false,
                 error: 'Journal data not found',
@@ -152,13 +153,21 @@ exports.getJournalDataById = async (req, res) => {
             });
         }
 
+        // Decrypt sensitive fields
+        const decryptedData = {
+            ...journal,
+            username: decryptText(journal.username),
+            password: decryptText(journal.password),
+            journal_link: decryptText(journal.journal_link)
+        };
+
         res.status(200).json({
             success: true,
-            data,
+            data: decryptedData,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error fetching journal data:', error);
+        console.error('Error in getJournalDataById:', error);
         res.status(400).json({
             success: false,
             error: error.message,
@@ -226,9 +235,23 @@ exports.createJournalData = async (req, res) => {
 exports.updateJournalData = async (req, res) => {
     console.log('Executing: updateJournalData');
     const { id } = req.params;
-    const updateData = { ...req.body, updated_at: new Date().toISOString() };
+    const updateData = { ...req.body };
 
     try {
+        // Encrypt sensitive fields if they exist in the update data
+        if (updateData.username) {
+            updateData.username = encryptText(updateData.username);
+        }
+        if (updateData.password) {
+            updateData.password = encryptText(updateData.password);
+        }
+        if (updateData.journal_link) {
+            updateData.journal_link = encryptText(updateData.journal_link);
+        }
+
+        // Add updated timestamp
+        updateData.updated_at = new Date().toISOString();
+
         const { data, error } = await supabase
             .from('journal_data')
             .update(updateData)
@@ -245,9 +268,17 @@ exports.updateJournalData = async (req, res) => {
             });
         }
 
+        // Decrypt sensitive fields for response
+        const decryptedData = {
+            ...data,
+            username: decryptText(data.username),
+            password: decryptText(data.password),
+            journal_link: decryptText(data.journal_link)
+        };
+
         res.status(200).json({
             success: true,
-            data,
+            data: decryptedData,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
