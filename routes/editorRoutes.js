@@ -5,7 +5,8 @@ const {
     getJournalDataById,
     createJournalData,
     updateJournalData,
-    deleteJournalData
+    deleteJournalData,
+    triggerStatusUpload
 } = require('../controllers/editorController');
 const auth = require('../middleware/auth');
 
@@ -20,5 +21,8 @@ router.get('/journal-data/:id', auth, getJournalDataById);
 router.post('/journal-data/create', auth, createJournalData);
 router.put('/journal-data/:id', auth, updateJournalData);
 router.delete('/journal-data/:id', auth, deleteJournalData);
+
+// Status Upload route
+router.post('/trigger-status-upload', auth, triggerStatusUpload);
 
 module.exports = router;

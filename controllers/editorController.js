@@ -102,7 +102,7 @@ exports.getAllJournalData = async (req, res) => {
                     reg_id
                 )
             `)
-            .order('created_at', { ascending: false });
+            .order('id', { ascending: true }); // Changed to order by id descending
 
         if (error) throw error;
 
@@ -280,6 +280,70 @@ exports.deleteJournalData = async (req, res) => {
     } catch (error) {
         console.error('Error deleting journal data:', error);
         res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.triggerStatusUpload = async (req, res) => {
+    console.log('Executing: triggerStatusUpload',req.body);
+    const { journalId } = req.body;
+
+    if (!journalId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Journal ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        const statusBotUrl = process.env.JSTATUSBOT_URL;
+        
+        // Call the external API using environment variable
+        const response = await fetch(`${statusBotUrl}/upload-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ journalId })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Error from status upload service');
+        }
+
+        // If the external API call was successful, update our database
+        if (data.status === 'success') {
+            // Update journal_data table with new status if needed
+            const { error: updateError } = await supabase
+                .from('journal_data')
+                .update({ 
+                    status: 'screenshot_uploaded',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', journalId);
+
+            if (updateError) {
+                console.error('Error updating journal status:', updateError);
+            }
+        }
+
+        // Return the external API response
+        res.status(200).json({
+            success: true,
+            data: data.data,
+            message: data.message,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Error triggering status upload:', error);
+        res.status(500).json({
             success: false,
             error: error.message,
             timestamp: new Date().toISOString()
