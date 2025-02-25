@@ -288,7 +288,7 @@ exports.deleteJournalData = async (req, res) => {
 };
 
 exports.triggerStatusUpload = async (req, res) => {
-    console.log('Executing: triggerStatusUpload',req.body);
+    // console.log('Executing: triggerStatusUpload', req.body);
     const { journalId } = req.body;
 
     if (!journalId) {
@@ -301,8 +301,9 @@ exports.triggerStatusUpload = async (req, res) => {
 
     try {
         const statusBotUrl = process.env.JSTATUSBOT_URL;
+        // console.log('Making request to:', `${statusBotUrl}/upload-status`);
+        // console.log('Request body:', { journalId });
         
-        // Call the external API using environment variable
         const response = await fetch(`${statusBotUrl}/upload-status`, {
             method: 'POST',
             headers: {
@@ -311,7 +312,9 @@ exports.triggerStatusUpload = async (req, res) => {
             body: JSON.stringify({ journalId })
         });
 
+        // console.log('Raw response:', response);
         const data = await response.json();
+        // console.log('Response data:', data);
 
         if (!response.ok) {
             throw new Error(data.message || 'Error from status upload service');
@@ -319,7 +322,7 @@ exports.triggerStatusUpload = async (req, res) => {
 
         // If the external API call was successful, update our database
         if (data.status === 'success') {
-            // Update journal_data table with new status if needed
+            // console.log('Updating journal status in database...');
             const { error: updateError } = await supabase
                 .from('journal_data')
                 .update({ 
@@ -330,19 +333,23 @@ exports.triggerStatusUpload = async (req, res) => {
 
             if (updateError) {
                 console.error('Error updating journal status:', updateError);
+            } else {
+                console.log('Journal status updated successfully');
             }
         }
 
-        // Return the external API response
-        res.status(200).json({
+        const finalResponse = {
             success: true,
             data: data.data,
             message: data.message,
             timestamp: new Date().toISOString()
-        });
+        };
+        // console.log('Sending final response:', finalResponse);
+        res.status(200).json(finalResponse);
 
     } catch (error) {
-        console.error('Error triggering status upload:', error);
+        console.error('Error in triggerStatusUpload:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
             error: error.message,
