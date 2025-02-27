@@ -756,11 +756,46 @@ exports.updateRegistration = async (req, res) => {
         });
     }
 
-    // Update the registration status to registered
+    // Extract registration and transaction details from request body
+    const {
+        // Registration details
+        services,
+        init_amount,
+        accept_amount,
+        discount,
+        total_amount,
+        accept_period,
+        pub_period,
+        bank_id,
+        status,
+        month,
+        year,
+        
+        // Transaction details
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        exec_id
+    } = req.body;
+
+    // Update registration data
     const { data: registrationData, error: registrationError } = await supabase
         .from('registration')
         .update({
-            status: 'registered'
+            services,
+            init_amount,
+            accept_amount,
+            discount,
+            total_amount,
+            accept_period,
+            pub_period,
+            bank_id,
+            status,
+            month,
+            year,
+            updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select()
@@ -775,25 +810,17 @@ exports.updateRegistration = async (req, res) => {
         });
     }
 
-    // Update the transaction with new details
-    const {
-        transaction_type,
-        transaction_id: external_transaction_id,
-        amount,
-        transaction_date,
-        additional_info,
-        exec_id
-    } = req.body;
-
+    // Update transaction data
     const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .update({
             transaction_type,
             transaction_id: external_transaction_id,
-            amount: parseFloat(amount || 0), // Set default to 0 if amount is null
+            amount: parseFloat(amount || 0),
             transaction_date,
             additional_info,
             exec_id,
+            updated_at: new Date().toISOString()
         })
         .eq('id', currentRegistration.transaction_id)
         .select()
@@ -894,6 +921,92 @@ exports.deleteRegistration = async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Registration and associated transaction deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.approveRegistration = async (req, res) => {
+    console.log('Executing: approveRegistration');
+    const { id } = req.params;
+    
+    console.log('Approve Registration Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('Registration ID:', id);
+
+    // First get the current registration to get the transaction_id
+    const { data: currentRegistration, error: fetchError } = await supabase
+        .from('registration')
+        .select('transaction_id')
+        .eq('id', id)
+        .single();
+
+    if (fetchError || !currentRegistration) {
+        console.log('Error fetching registration:', fetchError);
+        return res.status(404).json({
+            success: false,
+            error: 'Registration not found',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Update registration status to 'registered'
+    const { data: registrationData, error: registrationError } = await supabase
+        .from('registration')
+        .update({ status: 'registered' })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (registrationError) {
+        console.log('Error updating registration status:', registrationError);
+        return res.status(400).json({
+            success: false,
+            error: registrationError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Extract transaction details from request body
+    const {
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        exec_id
+    } = req.body;
+
+    // Update the transaction with new details
+    const { data: transactionData, error: transactionError } = await supabase
+        .from('transactions')
+        .update({
+            transaction_type,
+            transaction_id: external_transaction_id,
+            amount: parseFloat(amount || 0),
+            transaction_date,
+            additional_info,
+            exec_id,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', currentRegistration.transaction_id)
+        .select()
+        .single();
+
+    if (transactionError) {
+        console.log('Error updating transaction:', transactionError);
+        return res.status(400).json({
+            success: false,
+            error: transactionError.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Registration approved successfully',
+        data: {
+            registration: registrationData,
+            transaction: transactionData
+        },
         timestamp: new Date().toISOString()
     });
 };
