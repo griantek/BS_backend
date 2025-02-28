@@ -93,7 +93,7 @@ exports.getAllJournalData = async (req, res) => {
             .from('journal_data')
             .select(`
                 *,
-                executive:applied_person(
+                executive:assigned_to(
                     id,
                     username,
                     email
@@ -131,7 +131,7 @@ exports.getJournalDataById = async (req, res) => {
             .from('journal_data')
             .select(`
                 *,
-                executive:applied_person(
+                executive:assigned_to(
                     id,
                     username,
                     email
@@ -183,7 +183,7 @@ exports.createJournalData = async (req, res) => {
         client_name,
         requirement,
         personal_email,
-        applied_person,
+        assigned_to,
         journal_name,
         status,
         journal_link,
@@ -202,7 +202,7 @@ exports.createJournalData = async (req, res) => {
                 client_name,
                 requirement,
                 personal_email,
-                applied_person,
+                assigned_to,
                 journal_name,
                 status,
                 journal_link,
@@ -414,7 +414,7 @@ exports.createJournalDataFromProspectus = async (req, res) => {
                 client_name: prospectus.client_name,
                 requirement: prospectus.requirement,
                 personal_email: prospectus.email,
-                applied_person: prospectus.executive_id,
+                assigned_to: prospectus.executive_id,
                 journal_name,
                 status,
                 journal_link,

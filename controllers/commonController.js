@@ -647,6 +647,7 @@ exports.createRegistration = async (req, res) => {
         total_amount,
         accept_period,
         pub_period,
+        assigned_to,
         bank_id,
         status,
         month,
@@ -693,6 +694,7 @@ exports.createRegistration = async (req, res) => {
             status,
             month,
             year,
+            assigned_to,
             transaction_id: transactionData.id,// Link to the created transaction
             notes,
         }])
@@ -948,16 +950,19 @@ exports.approveRegistration = async (req, res) => {
         });
     }
 
-    // Update registration status to 'registered'
+    // Update registration status and assigned_to
     const { data: registrationData, error: registrationError } = await supabase
         .from('registration')
-        .update({ status: 'registered' })
+        .update({ 
+            status: 'registered',
+            assigned_to: req.body.assigned_to || null  // Add this line
+        })
         .eq('id', id)
         .select()
         .single();
 
     if (registrationError) {
-        console.log('Error updating registration status:', registrationError);
+        console.log('Error updating registration:', registrationError);
         return res.status(400).json({
             success: false,
             error: registrationError.message,
@@ -965,7 +970,7 @@ exports.approveRegistration = async (req, res) => {
         });
     }
 
-    // Extract transaction details from request body
+    // Update the transaction with new details
     const {
         transaction_type,
         transaction_id: external_transaction_id,

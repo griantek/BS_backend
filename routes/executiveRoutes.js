@@ -8,7 +8,8 @@ const {
     getProspectusByExecutiveId,
     getProspectusByRegId,
     getRegistrationsByExecutiveId,
-    updateProspectus
+    updateProspectus,
+    getAllEditors
 } = require('../controllers/executiveController');
 const auth = require('../middleware/auth');
 
@@ -28,5 +29,8 @@ router.put('/prospectus/:id', auth, updateProspectus); // Add this new route
 
 // Add new registration route
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
+
+// Add this new route with your other routes
+router.get('/editors/all', getAllEditors);
 
 module.exports = router;

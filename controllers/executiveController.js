@@ -511,3 +511,28 @@ exports.updateExecutive = async (req, res) => {
         });
     }
 };
+
+exports.getAllEditors = async (req, res) => {
+    console.log('Executing: getAllEditors');
+    
+    const { data: editors, error } = await supabase
+        .from('executive')
+        .select('id, username')
+        .eq('entity_type', 'Editor')
+        .order('username', { ascending: true });
+
+    if (error) {
+        console.log('Error fetching editors:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data: editors,
+        timestamp: new Date().toISOString()
+    });
+};
