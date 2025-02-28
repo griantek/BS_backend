@@ -389,6 +389,62 @@ exports.triggerStatusUpload = async (req, res) => {
     }
 };
 
+exports.getAssignedRegistrations = async (req, res) => {
+    console.log('Executing: getAssignedRegistrations');
+    const { executive_id } = req.params;
+
+    try {
+        // First get all prospectus_ids that are already in journal_data
+        const { data: journalData, error: journalError } = await supabase
+            .from('journal_data')
+            .select('prospectus_id');
+
+        if (journalError) throw journalError;
+
+        // Get the list of prospectus_ids to exclude
+        const existingProspectusIds = journalData.map(j => j.prospectus_id);
+
+        // Get registrations that match our criteria
+        const { data: registrations, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id (
+                    id,
+                    client_name,
+                    reg_id,
+                    requirement,
+                    email,
+                    executive:executive_id (
+                        id,
+                        username,
+                        email
+                    )
+                )
+            `)
+            .eq('assigned_to', executive_id)
+            .eq('status', 'registered')
+            .not('prospectus_id', 'in', `(${existingProspectusIds.join(',')})`)
+            .order('created_at', { ascending: false });
+
+        if (registrationError) throw registrationError;
+
+        res.status(200).json({
+            success: true,
+            data: registrations,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Error fetching assigned registrations:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 // Alternative version getting data from prospectus table
 /*
 exports.createJournalDataFromProspectus = async (req, res) => {

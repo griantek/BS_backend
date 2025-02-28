@@ -632,7 +632,7 @@ exports.createRegistration = async (req, res) => {
     const {
         // Transaction details
         transaction_type,
-        transaction_id: external_transaction_id, // rename to avoid confusion
+        transaction_id: external_transaction_id,
         amount,
         transaction_date,
         additional_info,
