@@ -1,4 +1,4 @@
-const supabase = require('../supabaseClient');
+const supabase = require('../utils/supabaseClient');
 
 //====================================
 // Bank Account Controllers

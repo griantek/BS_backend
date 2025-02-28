@@ -7,7 +7,8 @@ const {
     updateJournalData,
     deleteJournalData,
     triggerStatusUpload,
-    getAssignedRegistrations
+    getAssignedRegistrations,
+    getProspectusAssistData
 } = require('../controllers/editorController');
 const auth = require('../middleware/auth');
 
@@ -28,5 +29,6 @@ router.post('/trigger-status-upload', auth, triggerStatusUpload);
 
 // Add this new route with your other routes
 router.get('/assigned-registrations/:executive_id', auth, getAssignedRegistrations);
+router.get('/prospectus-assist/:prospectus_id', auth, getProspectusAssistData);
 
 module.exports = router;

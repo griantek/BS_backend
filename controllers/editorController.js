@@ -1,4 +1,4 @@
-const supabase = require('../supabaseClient');
+const supabase = require('../utils/supabaseClient');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { decryptText, encryptText } = require('../utils/encryption');
@@ -195,6 +195,13 @@ exports.createJournalData = async (req, res) => {
     } = req.body;
 
     try {
+        // Encrypt sensitive data
+        const encryptedData = {
+            username: username ? encryptText(username) : null,
+            password: password ? encryptText(password) : null,
+            journal_link: journal_link ? encryptText(journal_link) : null
+        };
+
         const { data, error } = await supabase
             .from('journal_data')
             .insert([{
@@ -205,9 +212,9 @@ exports.createJournalData = async (req, res) => {
                 assigned_to,
                 journal_name,
                 status,
-                journal_link,
-                username,
-                password,
+                journal_link: encryptedData.journal_link,
+                username: encryptedData.username,
+                password: encryptedData.password,
                 orcid_username1,
                 password1,
                 paper_title
@@ -217,9 +224,17 @@ exports.createJournalData = async (req, res) => {
 
         if (error) throw error;
 
+        // Decrypt the sensitive fields for the response
+        const decryptedResponse = {
+            ...data,
+            username: username,  // Return original values instead of encrypted ones
+            password: password,
+            journal_link: journal_link
+        };
+
         res.status(201).json({
             success: true,
-            data,
+            data: decryptedResponse,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -437,6 +452,47 @@ exports.getAssignedRegistrations = async (req, res) => {
 
     } catch (error) {
         console.error('Error fetching assigned registrations:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getProspectusAssistData = async (req, res) => {
+    console.log('Executing: getProspectusAssistData');
+    const { prospectus_id } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('prospectus')
+            .select('email, client_name, requirement')
+            .eq('id', prospectus_id)
+            .single();
+
+        if (error) throw error;
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Prospectus not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                personal_email: data.email,
+                client_name: data.client_name,
+                requirement: data.requirement
+            },
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Error fetching prospectus assist data:', error);
         res.status(400).json({
             success: false,
             error: error.message,
