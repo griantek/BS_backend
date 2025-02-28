@@ -3,10 +3,10 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-const executiveRoutes = require('./routes/executiveRoutes');
-const superAdminRoutes = require('./routes/superAdminRoutes');
-const commonRoutes = require('./routes/commonRoutes');
-const editorRoutes = require('./routes/editorRoutes');
+const executiveRoutes = require('./src/routes/executiveRoutes');
+const superAdminRoutes = require('./src/routes/superAdminRoutes');
+const commonRoutes = require('./src/routes/commonRoutes');
+const editorRoutes = require('./src/routes/editorRoutes');
 
 const app = express();
 
