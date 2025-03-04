@@ -20,7 +20,7 @@ app.use(cors({
 app.use(bodyParser.json());
 
 // Add health check route before other routes
-app.get('/test', (req, res) => {
+app.get('/', (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Server is running',

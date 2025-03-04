@@ -372,7 +372,6 @@ exports.triggerStatusUpload = async (req, res) => {
             const { error: updateError } = await supabase
                 .from('journal_data')
                 .update({ 
-                    status: 'screenshot_uploaded',
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', journalId);
