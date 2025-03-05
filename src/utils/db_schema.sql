@@ -38,8 +38,9 @@ create table public.departments (
   name character varying(255) not null,
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  exec_id character varying(255) not null default 'supAdmin'::character varying,
-  constraint departments_pkey primary key (id)
+  entity_id uuid not null,
+  constraint departments_pkey primary key (id),
+  constraint departments_entity_id_fkey foreign KEY (entity_id) references entities (id) on delete CASCADE
 ) TABLESPACE pg_default;
 
 create table public.entities (
@@ -107,7 +108,7 @@ create table public.permissions (
 
 create table public.prospectus (
   id serial not null,
-  executive_id uuid not null,
+  entity_id uuid not null,
   date date not null,
   email text not null,
   reg_id text not null,
@@ -125,7 +126,7 @@ create table public.prospectus (
   isregistered boolean not null default false,
   updated_at timestamp without time zone null default now(),
   constraint prospectus_pkey primary key (id),
-  constraint prospectus_executive_id_fkey foreign KEY (executive_id) references entities (id) on delete set null
+  constraint prospectus_entity_id_fkey foreign KEY (entity_id) references entities (id) on delete set null
 ) TABLESPACE pg_default;
 
 create table public.registration (
@@ -192,8 +193,8 @@ create table public.transactions (
   amount numeric not null,
   transaction_date date not null,
   additional_info jsonb null,
-  exec_id uuid null,
+  entity_id uuid null,
   updated_at timestamp without time zone null default now(),
   constraint transactions_pkey primary key (id),
-  constraint transactions_exec_id_fkey foreign KEY (exec_id) references entities (id) on delete set null
+  constraint transactions_entity_id_fkey foreign KEY (entity_id) references entities (id) on delete set null
 ) TABLESPACE pg_default;
