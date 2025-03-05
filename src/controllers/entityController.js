@@ -85,7 +85,7 @@ exports.loginExecutive = async (req, res) => {
     const response = {
       success: true,
       token,
-      executive: {
+      entity: {  // Changed from 'executive' to 'entity'
         id: executive.id,
         username: executive.username,
         email: executive.email,
@@ -253,7 +253,7 @@ exports.getProspectus = async (req, res) => {
     .from('prospectus')
     .select(`
       *,
-      executive:executive_id (
+      entity:executive_id (  // Changed from 'executive' to 'entity'
         id,
         username,
         email

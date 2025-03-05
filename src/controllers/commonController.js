@@ -470,7 +470,7 @@ exports.getAllTransactions = async (req, res) => {
         .from('transactions')
         .select(`
             *,
-            executive:exec_id(
+            entities:exec_id(  // Changed from executive to entities
                 id,
                 username
             ),
@@ -499,7 +499,7 @@ exports.getAllTransactions = async (req, res) => {
         ...transaction,
         client_name: transaction.registration?.prospectus?.client_name || 'N/A',
         reg_id: transaction.registration?.prospectus?.reg_id || 'N/A',
-        executive_name: transaction.executive?.username || 'N/A'
+        entity_name: transaction.entities?.username || 'N/A'  // Changed from executive_name to entity_name
     }));
 
     res.status(200).json({
@@ -524,7 +524,7 @@ exports.getAllRegistrations = async (req, res) => {
                 executive_id,
                 client_name,
                 reg_id,
-                executive:executive_id(
+                entities:executive_id(
                     id,
                     username,
                     email
@@ -1053,7 +1053,7 @@ exports.getDepartmentById = async (req, res) => {
         .from('departments')
         .select(`
             *,
-            executive:exec_id(id, username)
+            entities:exec_id(id, username)
         `)
         .eq('id', id)
         .single();

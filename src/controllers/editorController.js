@@ -77,6 +77,7 @@ exports.loginEditor = async (req, res) => {
         dashboard_url: editor.role_details?.dashboard_url || '/default-dashboard',
         permissions: permissionDetails
       },
+      entity_type: 'Editor',
       created_at: editor.created_at,
       updated_at: editor.updated_at
     }
@@ -93,7 +94,7 @@ exports.getAllJournalData = async (req, res) => {
             .from('journal_data')
             .select(`
                 *,
-                executive:assigned_to(
+                entity:assigned_to(
                     id,
                     username,
                     email
@@ -131,7 +132,7 @@ exports.getJournalDataById = async (req, res) => {
             .from('journal_data')
             .select(`
                 *,
-                executive:assigned_to(
+                entity:assigned_to(
                     id,
                     username,
                     email
@@ -429,7 +430,7 @@ exports.getAssignedRegistrations = async (req, res) => {
                     reg_id,
                     requirement,
                     email,
-                    executive:executive_id (
+                    entity:executive_id (
                         id,
                         username,
                         email
