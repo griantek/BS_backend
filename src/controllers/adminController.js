@@ -4,13 +4,13 @@ const jwt = require('jsonwebtoken');
 
 const generateToken = (admin) => {
     return jwt.sign(
-        { id: admin.id, username: admin.username, role: 'superadmin' },
+        { id: admin.id, username: admin.username, role: 'admin' },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 };
 
-exports.loginSuperAdmin = async (req, res) => {
+exports.loginAdmin = async (req, res) => {
     const { username, password } = req.body;
 
     const { data: admin, error } = await supabase
@@ -46,7 +46,7 @@ exports.loginSuperAdmin = async (req, res) => {
     });
 };
 
-exports.createSuperAdmin = async (req, res) => {
+exports.createAdmin = async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -318,6 +318,112 @@ exports.deleteRole = async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Role deleted successfully',
+        timestamp: new Date().toISOString()
+    });
+};
+
+exports.getRoleWithPermissions = async (req, res) => {
+    console.log('Executing: getRoleWithPermissions');
+    const { id } = req.params;
+
+    try {
+        // First get the role
+        const { data: role, error: roleError } = await supabase
+            .from('roles')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (roleError) {
+            console.log('Error fetching role:', roleError);
+            return res.status(400).json({
+                success: false,
+                error: roleError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!role) {
+            return res.status(404).json({
+                success: false,
+                error: 'Role not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Then get all permissions for this role
+        let permissionDetails = [];
+        if (role.permissions && role.permissions.length > 0) {
+            const { data: permissions, error: permError } = await supabase
+                .from('permissions')
+                .select('*')
+                .in('id', role.permissions);
+
+            if (permError) {
+                console.log('Error fetching permissions:', permError);
+                return res.status(400).json({
+                    success: false,
+                    error: permError.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            permissionDetails = permissions;
+        }
+
+        // Format the response
+        const response = {
+            ...role,
+            permissions: permissionDetails.map(p => ({
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                entity_type: p.entity_type,
+                created_at: p.created_at,
+                updated_at: p.updated_at
+            }))
+        };
+
+        res.status(200).json({
+            success: true,
+            data: response,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Unexpected error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+//====================================
+// Permission Controllers
+//====================================
+
+exports.getAllPermissions = async (req, res) => {
+    console.log('Executing: getAllPermissions');
+
+    const { data, error } = await supabase
+        .from('permissions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.log('Error fetching permissions:', error);
+        return res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data,
         timestamp: new Date().toISOString()
     });
 };

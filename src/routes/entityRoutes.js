@@ -10,7 +10,7 @@ const {
     getRegistrationsByExecutiveId,
     updateProspectus,
     getAllEditors
-} = require('../controllers/executiveController');
+} = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
 const router = express.Router();

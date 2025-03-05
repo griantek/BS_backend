@@ -3,8 +3,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-const executiveRoutes = require('./src/routes/executiveRoutes');
-const superAdminRoutes = require('./src/routes/superAdminRoutes');
+const entityRoutes = require('./src/routes/entityRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const editorRoutes = require('./src/routes/editorRoutes');
 
@@ -31,8 +31,8 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.use('/api/executive', executiveRoutes); // Keep original prospectus route path but use executive router
-app.use('/api/superadmin', superAdminRoutes);  // Only this route for both superadmin and services
+app.use('/api/entity', entityRoutes); // Keep original prospectus route path but use entity router
+app.use('/api/admin', adminRoutes);  // Only this route for both admin and services
 app.use('/api/common', commonRoutes);  // Changed from finance to common
 app.use('/api/editor', editorRoutes); // Add editor routes
 
