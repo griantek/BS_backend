@@ -778,7 +778,8 @@ exports.createRegistration = async (req, res) => {
         status,
         month,
         year,
-        notes
+        notes,
+        registered_by,
     } = req.body;
 
     try {
@@ -822,8 +823,9 @@ exports.createRegistration = async (req, res) => {
                 month,
                 year,
                 assigned_to,
-                transaction_id: transactionData.id,// Link to the created transaction
+                transaction_id: transactionData.id,
                 notes,
+                registered_by,
             }])
             .select()
             .single();
@@ -1084,8 +1086,8 @@ exports.approveRegistration = async (req, res) => {
     console.log('Executing: approveRegistration');
     const { id } = req.params;
     
-    console.log('Approve Registration Request Body:', JSON.stringify(req.body, null, 2));
-    console.log('Registration ID:', id);
+    // console.log('Approve Registration Request Body:', JSON.stringify(req.body, null, 2));
+    // console.log('Registration ID:', id);
 
     try {
         // First get the current registration to get the transaction_id

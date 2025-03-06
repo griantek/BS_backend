@@ -374,33 +374,7 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
   const { executiveId } = req.params;
 
   try {
-    // First get all prospectus IDs for this executive
-    const { data: prospectusData, error: prospectusError } = await supabase
-      .from('prospectus')
-      .select('id')
-      .eq('entity_id', executiveId);  // Changed from executive_id
-
-    if (prospectusError) {
-      return res.status(400).json({
-        success: false,
-        error: prospectusError.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    if (!prospectusData.length) {
-      return res.status(200).json({
-        success: true,
-        data: [],
-        message: 'No prospectus found for this executive',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Get all prospectus IDs
-    const prospectusIds = prospectusData.map(p => p.id);
-
-    // Then get all registrations for these prospectus IDs
+    // Get registrations directly using registered_by field
     const { data: registrations, error: registrationError } = await supabase
       .from('registration')
       .select(`
@@ -412,7 +386,7 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
           entities:entity_id(*)
         )
       `)
-      .in('prospectus_id', prospectusIds)
+      .eq('registered_by', executiveId)  // Changed from prospectus query to direct registered_by field
       .order('created_at', { ascending: false });
 
     if (registrationError) {
