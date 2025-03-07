@@ -9,7 +9,8 @@ const {
     getProspectusByRegId,
     getRegistrationsByExecutiveId,
     updateProspectus,
-    getAllEditors
+    getAllEditors,
+    updateExecutive // Add this import
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -19,6 +20,7 @@ const router = express.Router();
 router.post('/create', createExecutive);
 router.post('/login', loginExecutive);
 router.get('/all', auth, getAllExecutives);
+router.put('/:id', auth, updateExecutive); // Add this new route
 
 // Prospectus routes (now handled by executive)
 router.post('/prospectus/create', auth, createProspectus);

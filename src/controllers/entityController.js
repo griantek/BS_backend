@@ -126,7 +126,6 @@ exports.createExecutive = async (req, res) => {
         password: hashedPassword,
         email,
         role: role || 'executive',
-        entity_type: 'Executive'  // Added explicit entity_type
       }]);
 
     if (error) {
@@ -151,7 +150,8 @@ exports.getAllExecutives = async (req, res) => {
           id,
           name,
           description,
-          permissions
+          permissions,
+          entity_type
         )
       `)
       .order('created_at', { ascending: false });

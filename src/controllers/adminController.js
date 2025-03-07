@@ -379,14 +379,16 @@ exports.updateRole = async (req, res) => {
     try {
         console.log('Executing: updateRole');
         const { id } = req.params;
-        const { name, description, permissions } = req.body;
+        const { name, description, permissions, entity_type } = req.body;
 
+        // Explicitly setting new permissions array, overwriting old one
         const { data, error } = await supabase
             .from('roles')
             .update({
                 name,
                 description,
-                permissions,
+                permissions: permissions || [], // If permissions is null/undefined, use empty array
+                entity_type,
                 updated_at: new Date().toISOString()
             })
             .eq('id', id)
