@@ -16,10 +16,19 @@ exports.loginExecutive = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // First query: Get executive basic details
+    // First query: Get executive with role details in a single query
     const { data: executive, error: execError } = await supabase
-      .from('entities')  // Changed from 'executive'
-      .select('*')
+      .from('entities')
+      .select(`
+        *,
+        role_details:roles!role(
+          id,
+          name,
+          description,
+          permissions,
+          entity_type
+        )
+      `)
       .eq('username', username)
       .single();
 
@@ -28,14 +37,6 @@ exports.loginExecutive = async (req, res) => {
       return res.status(500).json({
         success: false,
         error: 'Database error occurred'
-      });
-    }
-
-    if (!executive) {
-      console.log('No executive found with username:', username);
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid credentials'
       });
     }
 
@@ -49,27 +50,13 @@ exports.loginExecutive = async (req, res) => {
       });
     }
 
-    // Second query: Get role details
-    const { data: roleDetails, error: roleError } = await supabase
-      .from('roles')
-      .select('*')
-      .eq('id', executive.role)
-      .single();
-
-    if (roleError) {
-      console.error('Error fetching role details:', roleError);
-      return res.status(500).json({
-        success: false,
-        error: 'Error fetching role details'
-      });
-    }
-    // Third query: Get permissions details
+    // Get permissions details
     let permissionDetails = [];
-    if (roleDetails?.permissions) {
+    if (executive.role_details?.permissions) {
       const { data: permissions, error: permError } = await supabase
         .from('permissions')
         .select('*')
-        .in('id', roleDetails.permissions);
+        .in('id', executive.role_details.permissions);
 
       if (!permError) {
         permissionDetails = permissions;
@@ -79,21 +66,25 @@ exports.loginExecutive = async (req, res) => {
     }
 
     // Create token
-    const token = generateToken(executive);
+    const token = generateToken({
+      ...executive,
+      role: executive.role_details?.id,
+      entity_type: executive.role_details?.entity_type
+    });
 
     // Format the response
     const response = {
       success: true,
       token,
-      entities: {  // Changed from 'executive' to 'entity'
+      entities: {
         id: executive.id,
         username: executive.username,
         email: executive.email,
-        entity_type: executive.entity_type || 'Executive',
+        entity_type: executive.role_details?.entity_type || 'Executive',
         role: {
-          id: roleDetails?.id,
-          name: roleDetails?.name || 'No Role',
-          description: roleDetails?.description,
+          id: executive.role_details?.id,
+          name: executive.role_details?.name || 'No Role',
+          description: executive.role_details?.description,
           permissions: permissionDetails.map(p => ({
             id: p.id,
             name: p.name,
@@ -163,7 +154,6 @@ exports.getAllExecutives = async (req, res) => {
           permissions
         )
       `)
-      .eq('entity_type', 'Executive')  // Add filter for Executive type
       .order('created_at', { ascending: false });
 
     if (execError) {

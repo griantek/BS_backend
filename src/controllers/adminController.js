@@ -198,7 +198,7 @@ exports.getAllRoles = async (req, res) => {
             .from('roles')
             .select('*')
             .order('created_at', { ascending: false });
-
+        console.log(data);
         if (error) {
             console.log('Error fetching roles:', error);
             return res.status(400).json({
@@ -267,12 +267,22 @@ exports.getRoleById = async (req, res) => {
 exports.createRole = async (req, res) => {
     try {
         console.log('Executing: createRole');
-        const { name, description, permissions } = req.body;
+        const { name, description, permissions, entity_type } = req.body;
 
-        if (!name) {
+        // Validate required fields
+        if (!name || typeof name !== 'string') {
             return res.status(400).json({
                 success: false,
-                error: 'Role name is required',
+                error: 'Role name is required and must be a string',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Validate permissions format if provided
+        if (permissions && !Array.isArray(permissions)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Permissions must be an array of IDs',
                 timestamp: new Date().toISOString()
             });
         }
@@ -283,6 +293,7 @@ exports.createRole = async (req, res) => {
                 name,
                 description,
                 permissions,
+                entity_type,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             }])
@@ -290,6 +301,15 @@ exports.createRole = async (req, res) => {
             .single();
 
         if (error) {
+            // Handle unique constraint violation
+            if (error.code === '23505') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Role name already exists',
+                    timestamp: new Date().toISOString()
+                });
+            }
+
             console.log('Error creating role:', error);
             return res.status(400).json({
                 success: false,
@@ -496,6 +516,40 @@ exports.getAllPermissions = async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred'
+        });
+    }
+};
+
+exports.getPermissionsByEntityType = async (req, res) => {
+    try {
+        console.log('Executing: getPermissionsByEntityType');
+        const { entity_type } = req.params;
+
+        const { data, error } = await supabase
+            .from('permissions')
+            .select('*')
+            .eq('entity_type', entity_type)
+            .order('created_at', { ascending: false });
+        if (error) {
+            console.log('Error fetching permissions:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getPermissionsByEntityType:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
         });
     }
 };

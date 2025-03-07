@@ -10,7 +10,8 @@ const {
     updateRole,
     deleteRole,
     getAllPermissions,
-    getRoleWithPermissions  // Add this line
+    getRoleWithPermissions,
+    getPermissionsByEntityType  // Add this new import
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 
@@ -34,5 +35,6 @@ router.get('/roles/:id/permissions',  getRoleWithPermissions);
 
 // Permissions
 router.get('/permissions/all',  getAllPermissions);
+router.get('/permissions/entity-type/:entity_type', getPermissionsByEntityType);  // Add this new route
 
 module.exports = router;
