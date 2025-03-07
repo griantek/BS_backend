@@ -194,23 +194,66 @@ exports.getAllRoles = async (req, res) => {
     try {
         console.log('Executing: getAllRoles');
 
-        const { data, error } = await supabase
+        // Get all roles with their permission IDs
+        const { data: roles, error: roleError } = await supabase
             .from('roles')
             .select('*')
             .order('created_at', { ascending: false });
-        console.log(data);
-        if (error) {
-            console.log('Error fetching roles:', error);
+
+        if (roleError) {
+            console.log('Error fetching roles:', roleError);
             return res.status(400).json({
                 success: false,
-                error: error.message,
+                error: roleError.message,
                 timestamp: new Date().toISOString()
             });
         }
 
+        // Get all unique permission IDs from all roles
+        const allPermissionIds = Array.from(new Set(
+            roles.reduce((acc, role) => {
+                return acc.concat(role.permissions || []);
+            }, [])
+        ));
+
+        // Fetch all permissions in a single query if there are any IDs
+        let permissionsMap = {};
+        if (allPermissionIds.length > 0) {
+            const { data: permissions, error: permError } = await supabase
+                .from('permissions')
+                .select('*')
+                .in('id', allPermissionIds);
+
+            if (permError) {
+                console.log('Error fetching permissions:', permError);
+                return res.status(400).json({
+                    success: false,
+                    error: permError.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // Create a map of permission id to permission details
+            permissionsMap = permissions.reduce((acc, perm) => {
+                acc[perm.id] = perm;
+                return acc;
+            }, {});
+        }
+
+        // Map the permissions to each role
+        const rolesWithPermissions = roles.map(role => ({
+            ...role,
+            permissions: (role.permissions || []).map(permId => ({
+                id: permId,
+                name: permissionsMap[permId]?.name,
+                description: permissionsMap[permId]?.description,
+                entity_type: permissionsMap[permId]?.entity_type
+            }))
+        }));
+
         res.status(200).json({
             success: true,
-            data,
+            data: rolesWithPermissions,
             timestamp: new Date().toISOString()
         });
     } catch (error) {

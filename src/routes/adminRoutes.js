@@ -34,7 +34,7 @@ router.delete('/roles/:id', auth, deleteRole);
 router.get('/roles/:id/permissions',  getRoleWithPermissions);
 
 // Permissions
-router.get('/permissions/all',  getAllPermissions);
-router.get('/permissions/entity-type/:entity_type', getPermissionsByEntityType);  // Add this new route
+router.get('/permissions/all',auth,  getAllPermissions);
+router.get('/permissions/entity-type/:entity_type',auth, getPermissionsByEntityType);  // Add this new route
 
 module.exports = router;
