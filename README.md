@@ -6,18 +6,18 @@ Backend API service for Graintek business management system built with Node.js, 
 
 ### Authentication & Authorization
 - JWT-based authentication
-- Role-based access control (SuperAdmin, Executive)
+- Role-based access control (admin, entity)
 - Secure password hashing with bcrypt
 - Protected routes with middleware
 
 ### User Management
-#### SuperAdmin
-- Create and login superadmin accounts
+#### admin
+- Create and login admin accounts
 - Manage roles and permissions
 - Manage all system features
 
-#### Executive
-- Create and login executive accounts
+#### entity
+- Create and login entity accounts
 - Create and manage prospectus
 - View assigned roles and permissions
 - Profile management
@@ -34,10 +34,10 @@ Backend API service for Graintek business management system built with Node.js, 
 ## API Endpoints
 
 ### Authentication Routes
-- POST `/api/superadmin/login` - SuperAdmin login
-- POST `/api/superadmin/create` - Create new SuperAdmin
-- POST `/api/executive/login` - Executive login
-- POST `/api/executive/create` - Create new executive
+- POST `/api/admin/login` - admin login
+- POST `/api/admin/create` - Create new admin
+- POST `/api/entity/login` - entity login
+- POST `/api/entity/create` - Create new entity
 
 ### Common Routes
 - GET `/api/common/bank-accounts/all` - Get all bank accounts
@@ -52,20 +52,20 @@ Backend API service for Graintek business management system built with Node.js, 
 - GET `/api/common/transactions/all` - Get all transactions
 - POST `/api/common/transactions/create` - Create new transaction
 
-### SuperAdmin Routes
-- POST `/api/superadmin/login` - SuperAdmin login
-- POST `/api/superadmin/create` - Create new SuperAdmin
-- POST `/api/superadmin/services/create` - Create new service
-- GET `/api/superadmin/services/all` - Get all services
+### admin Routes
+- POST `/api/admin/login` - admin login
+- POST `/api/admin/create` - Create new admin
+- POST `/api/admin/services/create` - Create new service
+- GET `/api/admin/services/all` - Get all services
 
-### Executive Routes
-- POST `/api/executive/create` - Create new executive
-- POST `/api/executive/login` - Executive login
-- GET `/api/executive/all` - Get all executives
-- POST `/api/executive/prospectus/create` - Create new prospectus
-- GET `/api/executive/prospectus/all` - Get all prospectus
-- GET `/api/executive/prospectus/:executiveId` - Get prospectus by executive
-- GET `/api/executive/prospectus/register/:regId` - Get prospectus by registration ID
+### entity Routes
+- POST `/api/entity/create` - Create new entity
+- POST `/api/entity/login` - entity login
+- GET `/api/entity/all` - Get all entity
+- POST `/api/entity/prospectus/create` - Create new prospectus
+- GET `/api/entity/prospectus/all` - Get all prospectus
+- GET `/api/entity/prospectus/:entity` - Get prospectus by entity
+- GET `/api/entity/prospectus/register/:regId` - Get prospectus by registration ID
 
 ## Technical Stack
 - Node.js & Express
@@ -106,7 +106,7 @@ Backend API service for Graintek business management system built with Node.js, 
 
 ## Database Tables
 - supAdmin
-- executive
+- entity
 - prospectus
 - services
 - registration

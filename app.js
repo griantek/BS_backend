@@ -3,8 +3,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
-const executiveRoutes = require('./src/routes/executiveRoutes');
-const superAdminRoutes = require('./src/routes/superAdminRoutes');
+const entityRoutes = require('./src/routes/entityRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const editorRoutes = require('./src/routes/editorRoutes');
 
@@ -20,7 +20,7 @@ app.use(cors({
 app.use(bodyParser.json());
 
 // Add health check route before other routes
-app.get('/test', (req, res) => {
+app.get('/', (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Server is running',
@@ -31,8 +31,8 @@ app.get('/test', (req, res) => {
 });
 
 // API Routes
-app.use('/api/executive', executiveRoutes); // Keep original prospectus route path but use executive router
-app.use('/api/superadmin', superAdminRoutes);  // Only this route for both superadmin and services
+app.use('/api/entity', entityRoutes); // Keep original prospectus route path but use entity router
+app.use('/api/admin', adminRoutes);  // Only this route for both admin and services
 app.use('/api/common', commonRoutes);  // Changed from finance to common
 app.use('/api/editor', editorRoutes); // Add editor routes
 
