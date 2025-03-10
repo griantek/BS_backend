@@ -574,14 +574,6 @@ exports.getAllTransactions = async (req, res) => {
                 entities:entity_id(
                     id,
                     username
-                ),
-                registration:registration!transaction_id(
-                    id,
-                    prospectus:prospectus_id(
-                        id,
-                        client_name,
-                        reg_id
-                    )
                 )
             `)
             .order('transaction_date', { ascending: false });
@@ -594,18 +586,9 @@ exports.getAllTransactions = async (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
-
-        // Format the response to make it cleaner
-        const formattedData = data.map(transaction => ({
-            ...transaction,
-            client_name: transaction.registration?.prospectus?.client_name || 'N/A',
-            reg_id: transaction.registration?.prospectus?.reg_id || 'N/A',
-            entity_name: transaction.entity?.username || 'N/A'  // Changed from executive_name to entity_name
-        }));
-
         res.status(200).json({
             success: true,
-            data: formattedData,
+            data: data,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
