@@ -81,7 +81,7 @@ exports.getBankAccountById = async (req, res) => {
 
 exports.createBankAccount = async (req, res) => {
     console.log('Executing: createBankAccount');
-    const { 
+    const {
         account_name,
         account_holder_name,
         account_number,
@@ -153,7 +153,7 @@ exports.createBankAccount = async (req, res) => {
 exports.updateBankAccount = async (req, res) => {
     console.log('Executing: updateBankAccount');
     const { id } = req.params;
-    const { 
+    const {
         account_name,
         account_holder_name,
         account_number,
@@ -412,13 +412,13 @@ exports.createService = async (req, res) => {
 exports.updateService = async (req, res) => {
     console.log('Executing: updateService');
     const { id } = req.params;
-    const { 
-        service_name, 
-        service_type, 
-        description, 
-        fee, 
-        min_duration, 
-        max_duration 
+    const {
+        service_name,
+        service_type,
+        description,
+        fee,
+        min_duration,
+        max_duration
     } = req.body;
 
     try {
@@ -644,6 +644,11 @@ exports.getAllRegistrations = async (req, res) => {
                     bank,
                     account_number
                 ),
+                assigned_executive:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
                 transactions:transaction_id(
                     id,
                     transaction_type,
@@ -680,12 +685,15 @@ exports.getAllRegistrations = async (req, res) => {
                 pub_period: reg.pub_period,
                 status: reg.status,
                 month: reg.month,
+                assigned_to: reg.assigned_to,
+                assigned_username: reg.assigned_executive?.username || 'Not Assigned',
                 year: reg.year,
                 created_at: reg.created_at,
 
                 // Related data
                 prospectus: reg.prospectus,
                 bank_account: reg.bank_accounts,
+                assigned_executive:reg.assigned_executive,
                 transaction: reg.transactions
             }))
         };
@@ -910,7 +918,7 @@ exports.updateRegistration = async (req, res) => {
             status,
             month,
             year,
-            
+
             // Transaction details
             transaction_type,
             transaction_id: external_transaction_id,
@@ -1085,7 +1093,7 @@ exports.deleteRegistration = async (req, res) => {
 exports.approveRegistration = async (req, res) => {
     console.log('Executing: approveRegistration');
     const { id } = req.params;
-    
+
     // console.log('Approve Registration Request Body:', JSON.stringify(req.body, null, 2));
     // console.log('Registration ID:', id);
 
@@ -1109,7 +1117,7 @@ exports.approveRegistration = async (req, res) => {
         // Update registration status and assigned_to
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
-            .update({ 
+            .update({
                 status: 'registered',
                 assigned_to: req.body.assigned_to || null  // Add this line
             })
