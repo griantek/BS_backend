@@ -281,6 +281,7 @@ exports.getProspectus = async (req, res) => {
     res.status(200).json({
       success: true,
       data,
+      count: data.length,  // Add count to response
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -364,7 +365,6 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
   const { executiveId } = req.params;
 
   try {
-    // Get registrations directly using registered_by field
     const { data: registrations, error: registrationError } = await supabase
       .from('registration')
       .select(`
@@ -374,9 +374,14 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
         transactions:transaction_id(
           *,
           entities:entity_id(*)
+        ),
+        assigned_executive:assigned_to(
+          id,
+          username,
+          email
         )
       `)
-      .eq('registered_by', executiveId)  // Changed from prospectus query to direct registered_by field
+      .eq('registered_by', executiveId)
       .order('created_at', { ascending: false });
 
     if (registrationError) {
@@ -542,9 +547,17 @@ exports.getAllEditors = async (req, res) => {
   
   try {
     const { data: editors, error } = await supabase
-      .from('entities')  // Changed from 'executive'
-      .select('id, username')
-      .eq('entity_type', 'Editor')
+      .from('entities')
+      .select(`
+        id, 
+        username,
+        role_details:roles!role(
+          id,
+          name,
+          entity_type
+        )
+      `)
+      .eq('role_details.entity_type', 'Editor')
       .order('username', { ascending: true });
 
     if (error) {
