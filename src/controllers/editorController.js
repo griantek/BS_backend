@@ -426,36 +426,63 @@ exports.getAssignedRegistrations = async (req, res) => {
         if (journalError) throw journalError;
 
         // Get the list of prospectus_ids to exclude
-        const existingProspectusIds = journalData.map(j => j.prospectus_id);
-
-        // Get registrations that match our criteria
+        const existingProspectusIds = journalData.map(j => j.prospectus_id).filter(Boolean);
+        
+        // Step 1: Get registrations with status 'registered' and assigned to the executive
         const { data: registrations, error: registrationError } = await supabase
             .from('registration')
+            .select('*, prospectus_id')
+            .eq('assigned_to', executive_id)
+            .eq('status', 'registered');
+            
+        if (registrationError) throw registrationError;
+        
+        // Filter out registrations whose prospectus_ids are already in journal_data
+        const filteredRegistrations = registrations.filter(reg => 
+            !existingProspectusIds.includes(reg.prospectus_id)
+        );
+        
+        if (filteredRegistrations.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Step 2: Fetch prospectus details for the filtered registrations
+        const prospectusIds = filteredRegistrations.map(reg => reg.prospectus_id);
+        
+        const { data: prospectusData, error: prospectusError } = await supabase
+            .from('prospectus')
             .select(`
-                *,
-                prospectus:prospectus_id (
+                id, 
+                client_name, 
+                reg_id, 
+                requirement, 
+                email,
+                entity:entity_id (
                     id,
-                    client_name,
-                    reg_id,
-                    requirement,
-                    email,
-                    entity:entity_id (
-                        id,
-                        username,
-                        email
-                    )
+                    username,
+                    email
                 )
             `)
-            .eq('assigned_to', executive_id)
-            .eq('status', 'registered')
-            .not('prospectus_id', 'in', `(${existingProspectusIds.join(',')})`)
-            .order('created_at', { ascending: false });
-
-        if (registrationError) throw registrationError;
+            .in('id', prospectusIds);
+            
+        if (prospectusError) throw prospectusError;
+        
+        // Step 3: Combine the data
+        const combinedData = filteredRegistrations.map(registration => {
+            const prospectus = prospectusData.find(p => p.id === registration.prospectus_id);
+            return {
+                ...registration,
+                prospectus: prospectus || null
+            };
+        });
 
         res.status(200).json({
             success: true,
-            data: registrations,
+            data: combinedData,
             timestamp: new Date().toISOString()
         });
 

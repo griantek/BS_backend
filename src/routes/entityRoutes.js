@@ -29,7 +29,7 @@ router.get('/prospectus/:executiveId', auth, getProspectusByExecutiveId);
 router.get('/prospectus/register/:regId', auth, getProspectusByRegId);
 router.put('/prospectus/:id', auth, updateProspectus); // Add this new route
 
-// Add new registration route
+// Update the registration route to support pagination query parameters
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
 
 // Add this new route with your other routes

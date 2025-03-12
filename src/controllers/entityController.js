@@ -301,7 +301,7 @@ exports.getProspectusByExecutiveId = async (req, res) => {
     const { data, error } = await supabase
       .from('prospectus')
       .select('*')
-      .eq('entity_id', executiveId)  // Changed from executive_id
+      .eq('entity_id', executiveId)
       .not('isregistered', 'eq', true);
     if (error) {
       return res.status(400).json({
@@ -551,7 +551,8 @@ exports.getAllEditors = async (req, res) => {
       .select(`
         id, 
         username,
-        role_details:roles!role(
+        email,
+        role_details:roles!inner(
           id,
           name,
           entity_type
