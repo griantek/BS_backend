@@ -11,12 +11,22 @@ const generateToken = (admin) => {
 };
 
 exports.loginAdmin = async (req, res) => {
+    console.log("Executing: loginAdmin");
     try {
         const { username, password } = req.body;
 
         const { data: admin, error } = await supabase
             .from('supAdmin')
-            .select('*')
+            .select(`
+                *,
+                role_details:role(
+                    id,
+                    name,
+                    description,
+                    permissions,
+                    entity_type
+                )
+            `)
             .eq('username', username)
             .single();
 
@@ -36,14 +46,43 @@ exports.loginAdmin = async (req, res) => {
             });
         }
 
+        // Get permissions details
+        let permissionDetails = [];
+        if (admin.role_details?.permissions) {
+            const permissionIds = admin.role_details.permissions;
+            const { data: permissions, error: permError } = await supabase
+                .from('permissions')
+                .select('id, name, description')
+                .in('id', permissionIds);
+
+            if (!permError) {
+                permissionDetails = permissions;
+            }
+        }
+
         const token = generateToken(admin);
         const { password: _, ...adminWithoutPassword } = admin;
 
-        res.status(200).json({
+        // Format the response
+        const response = {
             success: true,
             token,
-            admin: adminWithoutPassword
-        });
+            admin: {
+                ...adminWithoutPassword,
+                role: {
+                    id: admin.role_details?.id,
+                    name: admin.role_details?.name || 'SupAdmin',
+                    permissions: permissionDetails.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        description: p.description
+                      })),
+                    entity_type: admin.role_details?.entity_type
+                },
+            }
+        };
+
+        res.status(200).json(response);
     } catch (error) {
         console.error('Error in loginAdmin:', error);
         res.status(500).json({
