@@ -30,8 +30,7 @@ exports.loginEditor = async (req, res) => {
         role_details:role(
           id,
           name,
-          permissions,
-          dashboard_url
+          permissions
         )
       `)
       .eq('username', username)
@@ -75,7 +74,6 @@ exports.loginEditor = async (req, res) => {
         role: {
           id: editor.role_details?.id,
           name: editor.role_details?.name || 'No Role',
-          dashboard_url: editor.role_details?.dashboard_url || '/default-dashboard',
           permissions: permissionDetails
         },
         entity_type: 'Editor',

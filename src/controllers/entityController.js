@@ -106,6 +106,102 @@ exports.loginExecutive = async (req, res) => {
   }
 };
 
+exports.loginLeads = async (req, res) => {
+  console.log('Executing: loginLeads');
+  const { username, password } = req.body;
+
+  try {
+    // Get lead with role details in a single query
+    const { data: lead, error: leadError } = await supabase
+      .from('entities')
+      .select(`
+        *,
+        role_details:roles!role(
+          id,
+          name,
+          description,
+          permissions,
+          entity_type
+        )
+      `)
+      .eq('username', username)
+      .eq('role_details.entity_type', 'Leads')
+      .single();
+
+    if (leadError || !lead) {
+      console.error('Error fetching lead:', leadError || 'Lead not found');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, lead.password);
+    if (!isValidPassword) {
+      console.log('Invalid password for username:', username);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Get permissions details
+    let permissionDetails = [];
+    if (lead.role_details?.permissions) {
+      const { data: permissions, error: permError } = await supabase
+        .from('permissions')
+        .select('*')
+        .in('id', lead.role_details.permissions);
+
+      if (!permError) {
+        permissionDetails = permissions;
+      } else {
+        console.error('Error fetching permissions:', permError);
+      }
+    }
+
+    // Create token
+    const token = generateToken({
+      ...lead,
+      role: lead.role_details?.id,
+      entity_type: 'Leads'
+    });
+
+    // Format the response
+    const response = {
+      success: true,
+      token,
+      lead: {
+        id: lead.id,
+        username: lead.username,
+        email: lead.email,
+        entity_type: 'Leads',
+        role: {
+          id: lead.role_details?.id,
+          name: lead.role_details?.name || 'Leads',
+          description: lead.role_details?.description,
+          permissions: permissionDetails.map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description
+          }))
+        },
+        created_at: lead.created_at,
+        updated_at: lead.updated_at
+      }
+    };
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Unexpected error during leads login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred during login'
+    });
+  }
+};
+
 exports.createExecutive = async (req, res) => {
   console.log('Executing: createExecutive');
   const { username, password, email, role } = req.body;

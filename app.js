@@ -7,6 +7,7 @@ const entityRoutes = require('./src/routes/entityRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const editorRoutes = require('./src/routes/editorRoutes');
+const leadsRoutes = require('./src/routes/leadsRoutes');
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/api/entity', entityRoutes); // Keep original prospectus route path but
 app.use('/api/admin', adminRoutes);  // Only this route for both admin and services
 app.use('/api/common', commonRoutes);  // Changed from finance to common
 app.use('/api/editor', editorRoutes); // Add editor routes
+app.use('/api/leads', leadsRoutes); // Add leads routes
 
 const PORT = process.env.PORT || 5000;
 
