@@ -722,7 +722,8 @@ exports.approveLeadToProspectus = async (req, res) => {
             .update({
                 prospectus_type: 'Prospect',
                 followup_status: 'converted',
-                attended: true
+                attended: true,
+                remarks: 'Registered'
             })
             .eq('id', id)
             .select();
