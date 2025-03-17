@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get('/', auth, leadsController.getAllLeads);
 // Must place specific routes before params routes to avoid conflicts
-router.get('/today-followup',  leadsController.getLeadsByTodayFollowup);
+router.get('/today-followup', auth, leadsController.getLeadsByTodayFollowup);
 router.get('/source/:source', auth, leadsController.getLeadsBySource);
 router.get('/domain/:domain', auth, leadsController.getLeadsByDomain);
 router.get('/assignee/:assignee_id', auth, leadsController.getLeadsByAssignee);

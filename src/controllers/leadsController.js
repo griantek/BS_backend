@@ -4,11 +4,15 @@ const supabase = require('../utils/supabaseClient');
 exports.getAllLeads = async (req, res) => {
     console.log('Executing: getAllLeads');
     try {
+        // Filter by authenticated user ID
+        const userId = req.user.id;
+        
         const { data, error } = await supabase
             .from('leads')
             .select(`
                 *
             `)
+            .eq('created_by', userId)  // Only return leads created by this user
             .order('date', { ascending: false });
 
         if (error) {
@@ -39,12 +43,14 @@ exports.getAllLeads = async (req, res) => {
 exports.getLeadById = async (req, res) => {
     console.log('Executing: getLeadById');
     const { id } = req.params;
+    const userId = req.user.id;
 
     try {
         const { data, error } = await supabase
             .from('leads')
             .select('*')
             .eq('id', id)
+            .eq('created_by', userId)  // Only return if created by this user
             .single();
 
         if (error) {
@@ -81,7 +87,7 @@ exports.getLeadById = async (req, res) => {
 
 // Create a new lead
 exports.createLead = async (req, res) => {
-    console.log('Executing: createLead');
+    console.log('Executing: createLead',);
     try {
         const {
             lead_source,
@@ -300,6 +306,7 @@ exports.getLeadsByService = async (req, res) => {
 exports.getLeadsByDomain = async (req, res) => {
     console.log('Executing: getLeadsByDomain');
     const { domain } = req.params;
+    const userId = req.user.id;
 
     try {
         const { data, error } = await supabase
@@ -308,6 +315,7 @@ exports.getLeadsByDomain = async (req, res) => {
                 *
             `)
             .eq('domain', domain)
+            .eq('created_by', userId)  // Only return leads created by this user
             .order('date', { ascending: false });
 
         if (error) {
@@ -338,6 +346,7 @@ exports.getLeadsByDomain = async (req, res) => {
 exports.getLeadsBySource = async (req, res) => {
     console.log('Executing: getLeadsBySource');
     const { source } = req.params;
+    const userId = req.user.id;
 
     try {
         const { data, error } = await supabase
@@ -346,6 +355,7 @@ exports.getLeadsBySource = async (req, res) => {
                 *
             `)
             .eq('lead_source', source)
+            .eq('created_by', userId)  // Only return leads created by this user
             .order('date', { ascending: false });
 
         if (error) {
@@ -379,6 +389,7 @@ exports.getLeadsByTodayFollowup = async (req, res) => {
     try {
         // Get today's date in YYYY-MM-DD format
         const today = new Date().toISOString().split('T')[0];
+        const userId = req.user.id;
         
         const { data, error } = await supabase
             .from('leads')
@@ -386,6 +397,7 @@ exports.getLeadsByTodayFollowup = async (req, res) => {
                 *
             `)
             .eq('followup_date', today)
+            .eq('created_by', userId)  // Only return leads created by this user
             .order('date', { ascending: false });
 
         if (error) {
