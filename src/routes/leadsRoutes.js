@@ -4,14 +4,16 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(auth);
-
-router.get('/', leadsController.getAllLeads);
-router.get('/:id', leadsController.getLeadById);
-router.get('/service/:service', leadsController.getLeadsByService);
-router.get('/source/:source', leadsController.getLeadsBySource);
-router.post('/', leadsController.createLead);
-router.put('/:id', leadsController.updateLead);
-router.delete('/:id', leadsController.deleteLead);
+router.get('/', auth, leadsController.getAllLeads);
+// Must place specific routes before params routes to avoid conflicts
+router.get('/today-followup',  leadsController.getLeadsByTodayFollowup);
+router.get('/source/:source', auth, leadsController.getLeadsBySource);
+router.get('/domain/:domain', auth, leadsController.getLeadsByDomain);
+router.get('/assignee/:assignee_id', auth, leadsController.getLeadsByAssignee);
+router.get('/:id', auth, leadsController.getLeadById);
+router.post('/', auth, leadsController.createLead);
+router.put('/:id', auth, leadsController.updateLead);
+router.put('/:id/assign', auth, leadsController.assignLead);
+router.delete('/:id', auth, leadsController.deleteLead);
 
 module.exports = router;

@@ -6,8 +6,10 @@ exports.getAllLeads = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('leads')
-            .select('*')
-            .order('id', { ascending: false });
+            .select(`
+                *
+            `)
+            .order('date', { ascending: false });
 
         if (error) {
             console.log('Error fetching leads:', error);
@@ -84,21 +86,28 @@ exports.createLead = async (req, res) => {
         const {
             lead_source,
             client_name,
-            contact_number,
-            country,
+            phone_number,
+            domain,
+            research_area,
+            title,
+            degree,
+            university,
             state,
-            main_subject,
-            service,
-            requirements,
-            customer_remarks,
-            registration_date
+            country,
+            requirement,
+            detailed_requirement,
+            prospectus_type,
+            followup_date,
+            remarks,
+            created_by,
+            assigned_to
         } = req.body;
 
         // Validate required fields based on the schema
-        if (!lead_source || !contact_number || !country || !main_subject || !service || !requirements) {
+        if (!lead_source || !phone_number || !requirement) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields',
+                error: 'Missing required fields: lead_source, phone_number, and requirement are mandatory',
                 timestamp: new Date().toISOString()
             });
         }
@@ -106,17 +115,26 @@ exports.createLead = async (req, res) => {
         const { data, error } = await supabase
             .from('leads')
             .insert([{
-                lead_source,
                 date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+                lead_source,
                 client_name,
-                contact_number,
-                country,
+                phone_number,
+                domain,
+                research_area,
+                title,
+                degree,
+                university,
                 state,
-                main_subject,
-                service,
-                requirements,
-                customer_remarks,
-                registration_date: registration_date || null
+                country,
+                requirement,
+                detailed_requirement,
+                prospectus_type,
+                followup_date,
+                remarks,
+                created_by: created_by || req.user?.id, // Get from the authenticated user if not provided
+                assigned_to,
+                attended: false,
+                followup_status: 'pending'
             }])
             .select();
 
@@ -149,37 +167,28 @@ exports.createLead = async (req, res) => {
 exports.updateLead = async (req, res) => {
     console.log('Executing: updateLead');
     const { id } = req.params;
-    const {
-        lead_source,
-        client_name,
-        contact_number,
-        country,
-        state,
-        main_subject,
-        service,
-        requirements,
-        customer_remarks,
-        registration_date
-    } = req.body;
+    const updateData = { ...req.body };
+    
+    // Remove any fields that aren't in the table schema
+    const allowedFields = [
+        'lead_source', 'client_name', 'phone_number', 'domain', 'research_area',
+        'title', 'degree', 'university', 'state', 'country', 'requirement', 
+        'detailed_requirement', 'prospectus_type', 'followup_date', 'remarks',
+        'assigned_to', 'attended', 'followup_status'
+    ];
+    
+    // Filter to only include allowed fields
+    const filteredUpdateData = Object.keys(updateData)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj, key) => {
+            obj[key] = updateData[key];
+            return obj;
+        }, {});
 
     try {
-        // Build update object with only provided fields
-        const updateData = {};
-        
-        if (lead_source !== undefined) updateData.lead_source = lead_source;
-        if (client_name !== undefined) updateData.client_name = client_name;
-        if (contact_number !== undefined) updateData.contact_number = contact_number;
-        if (country !== undefined) updateData.country = country;
-        if (state !== undefined) updateData.state = state;
-        if (main_subject !== undefined) updateData.main_subject = main_subject;
-        if (service !== undefined) updateData.service = service;
-        if (requirements !== undefined) updateData.requirements = requirements;
-        if (customer_remarks !== undefined) updateData.customer_remarks = customer_remarks;
-        if (registration_date !== undefined) updateData.registration_date = registration_date;
-
         const { data, error } = await supabase
             .from('leads')
-            .update(updateData)
+            .update(filteredUpdateData)
             .eq('id', id)
             .select();
 
@@ -287,6 +296,44 @@ exports.getLeadsByService = async (req, res) => {
     }
 };
 
+// Get leads by domain
+exports.getLeadsByDomain = async (req, res) => {
+    console.log('Executing: getLeadsByDomain');
+    const { domain } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('leads')
+            .select(`
+                *
+            `)
+            .eq('domain', domain)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.log('Error fetching leads by domain:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getLeadsByDomain:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 // Get leads by source
 exports.getLeadsBySource = async (req, res) => {
     console.log('Executing: getLeadsBySource');
@@ -295,9 +342,11 @@ exports.getLeadsBySource = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('leads')
-            .select('*')
+            .select(`
+                *
+            `)
             .eq('lead_source', source)
-            .order('id', { ascending: false });
+            .order('date', { ascending: false });
 
         if (error) {
             console.log('Error fetching leads by source:', error);
@@ -315,6 +364,143 @@ exports.getLeadsBySource = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getLeadsBySource:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+// Get leads with follow-up date of today
+exports.getLeadsByTodayFollowup = async (req, res) => {
+    console.log('Executing: getLeadsByTodayFollowup');
+    
+    try {
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toISOString().split('T')[0];
+        
+        const { data, error } = await supabase
+            .from('leads')
+            .select(`
+                *
+            `)
+            .eq('followup_date', today)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.log('Error fetching today\'s follow-up leads:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            count: data.length,
+            today: today,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getLeadsByTodayFollowup:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+// Get leads assigned to a specific entity
+exports.getLeadsByAssignee = async (req, res) => {
+    console.log('Executing: getLeadsByAssignee');
+    const { assignee_id } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('leads')
+            .select(`
+                *
+            `)
+            .eq('assigned_to', assignee_id)
+            .order('followup_date', { ascending: true });
+
+        if (error) {
+            console.log('Error fetching leads by assignee:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getLeadsByAssignee:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+// Assign lead to an entity
+exports.assignLead = async (req, res) => {
+    console.log('Executing: assignLead');
+    const { id } = req.params;
+    const { assigned_to } = req.body;
+
+    if (!assigned_to) {
+        return res.status(400).json({
+            success: false,
+            error: 'Assignment ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('leads')
+            .update({ 
+                assigned_to,
+                followup_status: 'assigned'
+            })
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.log('Error assigning lead:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (data.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Lead not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: data[0],
+            message: 'Lead assigned successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in assignLead:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',

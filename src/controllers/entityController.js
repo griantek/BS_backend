@@ -36,7 +36,7 @@ exports.loginExecutive = async (req, res) => {
       console.error('Database error fetching executive:', execError);
       return res.status(500).json({
         success: false,
-        error: 'Database error occurred'
+        error: 'Username not found',
       });
     }
 
