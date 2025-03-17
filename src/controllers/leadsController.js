@@ -231,6 +231,85 @@ exports.updateLead = async (req, res) => {
     }
 };
 
+// Update lead status fields
+exports.updateLeadStatus = async (req, res) => {
+    console.log('Executing: updateLeadStatus');
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    // Extract only the allowed status fields
+    const { 
+        prospectus_type,
+        followup_date,
+        remarks,
+        followup_status
+    } = req.body;
+    
+    // Build the update object with only provided fields
+    const updateData = {};
+    if (prospectus_type !== undefined) updateData.prospectus_type = prospectus_type;
+    if (followup_date !== undefined) updateData.followup_date = followup_date;
+    if (remarks !== undefined) updateData.remarks = remarks;
+    if (followup_status !== undefined) updateData.followup_status = followup_status;
+    
+    // If no valid fields provided, return an error
+    if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'No valid status fields provided for update',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        // First verify the lead belongs to this user
+        const { data: leadData, error: leadError } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('id', id)
+            .eq('created_by', userId)
+            .single();
+            
+        if (leadError || !leadData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Lead not found or you do not have permission to update it',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Update the lead status
+        const { data, error } = await supabase
+            .from('leads')
+            .update(updateData)
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.log('Error updating lead status:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: data[0],
+            message: 'Lead status updated successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in updateLeadStatus:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 // Delete a lead
 exports.deleteLead = async (req, res) => {
     console.log('Executing: deleteLead');
@@ -382,8 +461,8 @@ exports.getLeadsBySource = async (req, res) => {
     }
 };
 
-// Get leads with follow-up date of today
-exports.getLeadsByTodayFollowup = async (req, res) => {
+// Get leads with follow-up date of today and past due
+exports.getLeadsByFollowup = async (req, res) => {
     console.log('Executing: getLeadsByTodayFollowup');
     
     try {
@@ -394,14 +473,16 @@ exports.getLeadsByTodayFollowup = async (req, res) => {
         const { data, error } = await supabase
             .from('leads')
             .select(`
-                *
+            *
             `)
-            .eq('followup_date', today)
-            .eq('created_by', userId)  // Only return leads created by this user
-            .order('date', { ascending: false });
+            .lte('followup_date', today)  // Less than or equal to today's date (includes past due)
+            .eq('created_by', userId)
+            .neq('prospectus_type', 'Prospect')
+            .eq('followup_status', 'pending')
+            .order('followup_date', { ascending: true });  // Changed to followup_date for better chronological sorting
 
         if (error) {
-            console.log('Error fetching today\'s follow-up leads:', error);
+            console.log('Error fetching today\'s and past due follow-up leads:', error);
             return res.status(400).json({
                 success: false,
                 error: error.message,

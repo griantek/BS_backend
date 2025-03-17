@@ -6,10 +6,11 @@ const router = express.Router();
 
 router.get('/', auth, leadsController.getAllLeads);
 // Must place specific routes before params routes to avoid conflicts
-router.get('/today-followup', auth, leadsController.getLeadsByTodayFollowup);
+router.get('/today-followup', auth, leadsController.getLeadsByFollowup);
 router.get('/source/:source', auth, leadsController.getLeadsBySource);
 router.get('/domain/:domain', auth, leadsController.getLeadsByDomain);
 router.get('/assignee/:assignee_id', auth, leadsController.getLeadsByAssignee);
+router.put('/:id/status', auth, leadsController.updateLeadStatus); // New route for updating status fields
 router.get('/:id', auth, leadsController.getLeadById);
 router.post('/', auth, leadsController.createLead);
 router.put('/:id', auth, leadsController.updateLead);
