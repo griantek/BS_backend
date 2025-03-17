@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/', auth, leadsController.getAllLeads);
+router.get('/unapproved', auth, leadsController.getAllUnapprovedLeads);
 // Must place specific routes before params routes to avoid conflicts
 router.get('/today-followup', auth, leadsController.getLeadsByFollowup);
 router.get('/source/:source', auth, leadsController.getLeadsBySource);

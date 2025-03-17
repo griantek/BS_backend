@@ -12,7 +12,47 @@ exports.getAllLeads = async (req, res) => {
             .select(`
                 *
             `)
-            .eq('created_by', userId)  // Only return leads created by this user
+            .eq('created_by', userId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.log('Error fetching leads:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getAllLeads:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getAllUnapprovedLeads = async (req, res) => {
+    console.log('Executing: getAllUnapprovedLeads');
+    try {
+        // Filter by authenticated user ID
+        const userId = req.user.id;
+        
+        const { data, error } = await supabase
+            .from('leads')
+            .select(`
+                *
+            `)
+            .eq('created_by', userId)
+            .or('prospectus_type.is.null,prospectus_type.neq.Prospect')
+            .or('followup_status.is.null,followup_status.neq.converted')
             .order('date', { ascending: false });
 
         if (error) {
