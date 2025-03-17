@@ -234,8 +234,8 @@ exports.createExecutive = async (req, res) => {
   }
 };
 
-exports.getAllExecutives = async (req, res) => {
-  console.log('Executing: getAllExecutives');
+exports.getAllEntites = async (req, res) => {
+  console.log('Executing: getAllEntites');
   
   try {
     const { data: executives, error: execError } = await supabase
@@ -253,7 +253,7 @@ exports.getAllExecutives = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (execError) {
-      console.log('Error fetching executives:', execError);
+      console.log('Error fetching entities:', execError);
       return res.status(400).json({
         success: false,
         error: execError.message,
@@ -275,7 +275,7 @@ exports.getAllExecutives = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in getAllExecutives:', error);
+    console.error('Error in getAllEntites:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',
@@ -673,6 +673,48 @@ exports.getAllEditors = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in getAllEditors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+exports.getAllExecutives = async (req, res) => {
+  console.log('Executing: getAllExecutives');
+  
+  try {
+    const { data: execs, error } = await supabase
+      .from('entities')
+      .select(`
+        id, 
+        username,
+        email,
+        role_details:roles!inner(
+          id,
+          name,
+          entity_type
+        )
+      `)
+      .eq('role_details.entity_type', 'Executive')
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.log('Error fetching executives:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: exec,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getAllExecutives:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',

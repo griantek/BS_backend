@@ -601,3 +601,112 @@ exports.assignLead = async (req, res) => {
         });
     }
 };
+
+// Approve a lead and convert it to a prospectus
+exports.approveLeadToProspectus = async (req, res) => {
+    console.log('Executing: approveLeadToProspectus');
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    try {
+        // First, fetch the lead data
+        const { data: leadData, error: leadError } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('id', id)
+            .eq('created_by', userId)
+            .single();
+            
+        if (leadError || !leadData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Lead not found or you do not have permission to approve it',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Extract data from request body for prospectus
+        const { 
+            email,
+            reg_id,
+            tech_person,
+            proposed_service_period,
+            services,
+            notes,
+            executive_id
+        } = req.body;
+        
+        // Validate required fields
+        if (!email || !reg_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: email and reg_id are mandatory',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Create the prospectus record
+        const { data: prospectusData, error: prospectusError } = await supabase
+            .from('prospectus')
+            .insert([{
+                entity_id: executive_id || userId,
+                date: new Date().toISOString().split('T')[0], // Current date
+                email,
+                reg_id,
+                client_name: leadData.client_name,
+                phone: leadData.phone_number,
+                department: leadData.domain,
+                state: leadData.state,
+                tech_person,
+                requirement: leadData.requirement,
+                proposed_service_period,
+                services,
+                notes,
+                next_follow_up: leadData.followup_date,
+                isregistered: false
+            }])
+            .select();
+        
+        if (prospectusError) {
+            console.log('Error creating prospectus:', prospectusError);
+            return res.status(400).json({
+                success: false,
+                error: prospectusError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Update the lead's status
+        const { data: updatedLeadData, error: updateLeadError } = await supabase
+            .from('leads')
+            .update({
+                prospectus_type: 'Prospect',
+                followup_status: 'converted',
+                attended: true
+            })
+            .eq('id', id)
+            .select();
+            
+        if (updateLeadError) {
+            console.log('Error updating lead status after conversion:', updateLeadError);
+            // Not returning here as the prospectus was already created
+        }
+        
+        res.status(200).json({
+            success: true,
+            data: {
+                prospectus: prospectusData[0],
+                lead: updatedLeadData ? updatedLeadData[0] : leadData
+            },
+            message: 'Lead successfully converted to prospectus',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in approveLeadToProspectus:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
