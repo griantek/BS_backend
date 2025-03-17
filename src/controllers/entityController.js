@@ -680,6 +680,7 @@ exports.getAllEditors = async (req, res) => {
     });
   }
 };
+
 exports.getAllExecutives = async (req, res) => {
   console.log('Executing: getAllExecutives');
   
@@ -710,7 +711,7 @@ exports.getAllExecutives = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: exec,
+      data: execs,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

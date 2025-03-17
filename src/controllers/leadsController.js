@@ -633,7 +633,7 @@ exports.approveLeadToProspectus = async (req, res) => {
             proposed_service_period,
             services,
             notes,
-            executive_id
+            assigned_to
         } = req.body;
         
         // Validate required fields
@@ -649,7 +649,7 @@ exports.approveLeadToProspectus = async (req, res) => {
         const { data: prospectusData, error: prospectusError } = await supabase
             .from('prospectus')
             .insert([{
-                entity_id: executive_id || userId,
+                entity_id: assigned_to ,
                 date: new Date().toISOString().split('T')[0], // Current date
                 email,
                 reg_id,
