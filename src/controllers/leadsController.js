@@ -673,7 +673,8 @@ exports.approveLeadToProspectus = async (req, res) => {
             proposed_service_period,
             services,
             notes,
-            assigned_to
+            assigned_to,
+            leads_id
         } = req.body;
         
         // Validate required fields
@@ -703,7 +704,8 @@ exports.approveLeadToProspectus = async (req, res) => {
                 services,
                 notes,
                 next_follow_up: leadData.followup_date,
-                isregistered: false
+                isregistered: false,
+                leads_id: leads_id,
             }])
             .select();
         
