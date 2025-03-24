@@ -8,6 +8,7 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const editorRoutes = require('./src/routes/editorRoutes');
 const leadsRoutes = require('./src/routes/leadsRoutes');
+const clientRoutes = require('./src/routes/clientRoutes');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/admin', adminRoutes);  // Only this route for both admin and servi
 app.use('/api/common', commonRoutes);  // Changed from finance to common
 app.use('/api/editor', editorRoutes); // Add editor routes
 app.use('/api/leads', leadsRoutes); // Add leads routes
+app.use('/api/clients', clientRoutes); // Add client routes
 
 const PORT = process.env.PORT || 5000;
 
