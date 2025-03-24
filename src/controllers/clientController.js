@@ -294,7 +294,14 @@ exports.createClient = async (req, res) => {
         console.log('Checking if email already exists:', email.toLowerCase());
         const { data: existingClient, error: checkError } = await supabase
             .from('clients')
-            .select('id')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    id,
+                    client_name,
+                    email
+                )
+            `)
             .eq('email', email.toLowerCase())
             .single();
 
@@ -309,10 +316,15 @@ exports.createClient = async (req, res) => {
         }
 
         if (existingClient) {
-            console.log('Email already in use:', email.toLowerCase());
-            return res.status(400).json({
-                success: false,
-                error: 'Email is already in use',
+            console.log('Email already in use, returning existing client:', email.toLowerCase());
+            // Remove password from response
+            const { password: _, ...clientWithoutPassword } = existingClient;
+            
+            return res.status(200).json({
+                success: true,
+                data: clientWithoutPassword,
+                emailExists: true,
+                message: 'Email is already in use. Returning existing client details.',
                 timestamp: new Date().toISOString()
             });
         }
