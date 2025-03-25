@@ -246,17 +246,10 @@ exports.getClientByEmail = async (req, res) => {
 exports.createClient = async (req, res) => {
     console.log('Executing: createClient');
     const { prospectus_id, email, password } = req.body;
-    
-    console.log('Create client request:', { prospectus_id, email, password: '***' });
 
     try {
         // Validate required fields
         if (!prospectus_id || !email || !password) {
-            console.log('Validation error: Missing required fields', { 
-                prospectus_id: !!prospectus_id, 
-                email: !!email, 
-                password: !!password 
-            });
             return res.status(400).json({
                 success: false,
                 error: 'Prospectus ID, email, and password are required',
@@ -264,8 +257,6 @@ exports.createClient = async (req, res) => {
             });
         }
 
-        // Check if prospectus exists
-        console.log('Checking if prospectus exists:', prospectus_id);
         const { data: prospectusData, error: prospectusError } = await supabase
             .from('prospectus')
             .select('id')
@@ -273,7 +264,6 @@ exports.createClient = async (req, res) => {
             .single();
 
         if (prospectusError) {
-            console.log('Error checking prospectus:', prospectusError);
             return res.status(400).json({
                 success: false,
                 error: 'Invalid prospectus ID: ' + prospectusError.message,
@@ -282,7 +272,6 @@ exports.createClient = async (req, res) => {
         }
 
         if (!prospectusData) {
-            console.log('Prospectus not found with ID:', prospectus_id);
             return res.status(400).json({
                 success: false,
                 error: 'Invalid prospectus ID: Prospectus not found',
@@ -290,8 +279,6 @@ exports.createClient = async (req, res) => {
             });
         }
 
-        // Check if email is already used
-        console.log('Checking if email already exists:', email.toLowerCase());
         const { data: existingClient, error: checkError } = await supabase
             .from('clients')
             .select(`
@@ -306,8 +293,6 @@ exports.createClient = async (req, res) => {
             .single();
 
         if (checkError && checkError.code !== 'PGRST116') {
-            // PGRST116 is the "no rows returned" error, which is expected
-            console.log('Error checking existing email:', checkError);
             return res.status(400).json({
                 success: false,
                 error: 'Error checking email: ' + checkError.message,
@@ -316,8 +301,6 @@ exports.createClient = async (req, res) => {
         }
 
         if (existingClient) {
-            console.log('Email already in use, returning existing client:', email.toLowerCase());
-            // Remove password from response
             const { password: _, ...clientWithoutPassword } = existingClient;
             
             return res.status(200).json({
@@ -329,11 +312,8 @@ exports.createClient = async (req, res) => {
             });
         }
 
-        // Encrypt password
-        console.log('Encrypting password');
         const encryptedPassword = encryptText(password);
 
-        console.log('Creating new client in database');
         const { data, error } = await supabase
             .from('clients')
             .insert([{
@@ -355,7 +335,6 @@ exports.createClient = async (req, res) => {
 
         // Remove encrypted password from response
         const { password: _, ...clientWithoutPassword } = data;
-        console.log('Client created successfully:', clientWithoutPassword);
         
         res.status(201).json({
             success: true,

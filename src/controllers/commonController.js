@@ -745,7 +745,7 @@ exports.getRegistrationById = async (req, res) => {
 };
 
 exports.createRegistration = async (req, res) => {
-    console.log('Executing: createRegistration',req.body);
+    console.log('Executing: createRegistration');
     const {
         // Transaction details
         transaction_type,
