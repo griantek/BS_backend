@@ -771,6 +771,7 @@ exports.createRegistration = async (req, res) => {
         year,
         notes,
         registered_by,
+        client_id
     } = req.body;
 
     try {
@@ -817,6 +818,7 @@ exports.createRegistration = async (req, res) => {
                 transaction_id: transactionData.id,
                 notes,
                 registered_by,
+                client_id
             }])
             .select()
             .single();

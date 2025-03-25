@@ -36,7 +36,7 @@ exports.loginExecutive = async (req, res) => {
       console.error('Database error fetching executive:', execError);
       return res.status(500).json({
         success: false,
-        error: 'Database error occurred'
+        error: 'Username not found',
       });
     }
 
@@ -106,6 +106,102 @@ exports.loginExecutive = async (req, res) => {
   }
 };
 
+exports.loginLeads = async (req, res) => {
+  console.log('Executing: loginLeads');
+  const { username, password } = req.body;
+
+  try {
+    // Get lead with role details in a single query
+    const { data: lead, error: leadError } = await supabase
+      .from('entities')
+      .select(`
+        *,
+        role_details:roles!role(
+          id,
+          name,
+          description,
+          permissions,
+          entity_type
+        )
+      `)
+      .eq('username', username)
+      .eq('role_details.entity_type', 'Leads')
+      .single();
+
+    if (leadError || !lead) {
+      console.error('Error fetching lead:', leadError || 'Lead not found');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, lead.password);
+    if (!isValidPassword) {
+      console.log('Invalid password for username:', username);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Get permissions details
+    let permissionDetails = [];
+    if (lead.role_details?.permissions) {
+      const { data: permissions, error: permError } = await supabase
+        .from('permissions')
+        .select('*')
+        .in('id', lead.role_details.permissions);
+
+      if (!permError) {
+        permissionDetails = permissions;
+      } else {
+        console.error('Error fetching permissions:', permError);
+      }
+    }
+
+    // Create token
+    const token = generateToken({
+      ...lead,
+      role: lead.role_details?.id,
+      entity_type: 'Leads'
+    });
+
+    // Format the response
+    const response = {
+      success: true,
+      token,
+      lead: {
+        id: lead.id,
+        username: lead.username,
+        email: lead.email,
+        entity_type: 'Leads',
+        role: {
+          id: lead.role_details?.id,
+          name: lead.role_details?.name || 'Leads',
+          description: lead.role_details?.description,
+          permissions: permissionDetails.map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description
+          }))
+        },
+        created_at: lead.created_at,
+        updated_at: lead.updated_at
+      }
+    };
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Unexpected error during leads login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred during login'
+    });
+  }
+};
+
 exports.createExecutive = async (req, res) => {
   console.log('Executing: createExecutive');
   const { username, password, email, role } = req.body;
@@ -138,8 +234,8 @@ exports.createExecutive = async (req, res) => {
   }
 };
 
-exports.getAllExecutives = async (req, res) => {
-  console.log('Executing: getAllExecutives');
+exports.getAllEntites = async (req, res) => {
+  console.log('Executing: getAllEntites');
   
   try {
     const { data: executives, error: execError } = await supabase
@@ -157,7 +253,7 @@ exports.getAllExecutives = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (execError) {
-      console.log('Error fetching executives:', execError);
+      console.log('Error fetching entities:', execError);
       return res.status(400).json({
         success: false,
         error: execError.message,
@@ -179,7 +275,7 @@ exports.getAllExecutives = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in getAllExecutives:', error);
+    console.error('Error in getAllEntites:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',
@@ -577,6 +673,49 @@ exports.getAllEditors = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in getAllEditors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+exports.getAllExecutives = async (req, res) => {
+  console.log('Executing: getAllExecutives');
+  
+  try {
+    const { data: execs, error } = await supabase
+      .from('entities')
+      .select(`
+        id, 
+        username,
+        email,
+        role_details:roles!inner(
+          id,
+          name,
+          entity_type
+        )
+      `)
+      .eq('role_details.entity_type', 'Executive')
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.log('Error fetching executives:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: execs,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getAllExecutives:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',
