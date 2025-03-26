@@ -681,6 +681,49 @@ exports.getAllEditors = async (req, res) => {
   }
 };
 
+exports.getAllAuthors = async (req, res) => {
+  console.log('Executing: getAllAuthors');
+  
+  try {
+    const { data: auhtors, error } = await supabase
+      .from('entities')
+      .select(`
+        id, 
+        username,
+        email,
+        role_details:roles!inner(
+          id,
+          name,
+          entity_type
+        )
+      `)
+      .eq('role_details.entity_type', 'Author')
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.log('Error fetching authors:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: auhtors,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getAllAuthors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 exports.getAllExecutives = async (req, res) => {
   console.log('Executing: getAllExecutives');
   

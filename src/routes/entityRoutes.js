@@ -12,7 +12,8 @@ const {
     getAllEditors,
     updateExecutive,
     loginLeads, // Add this import
-    getAllEntites
+    getAllEntites,
+    getAllAuthors
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -39,6 +40,7 @@ router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
 
 // Add this new route with your other routes
 router.get('/editors/all', getAllEditors);
+router.get('/author/all', getAllAuthors);
 router.get('/exec/all', getAllExecutives);
 
 module.exports = router;
