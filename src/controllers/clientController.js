@@ -321,10 +321,11 @@ exports.createClient = async (req, res) => {
 
     try {
         // Step 1: Validate required fields
-        if (!email || !password) {
+        if (!email) {
+            console.log('Missing required fields:', req.body); 
             return res.status(400).json({
                 success: false,
-                error: 'Email and password are required',
+                error: 'Email is required',
                 timestamp: new Date().toISOString()
             });
         }
@@ -374,13 +375,19 @@ exports.createClient = async (req, res) => {
         if (existingClient) {
             // Step 4.1: If a new prospectus_id was provided, try to add it to the existing array
             if (prospectus_id) {
+                
                 // Get existing prospectus IDs array (or empty array if none)
                 const existingIds = existingClient.prospectus_ids || [];
                 
+                // Ensure all IDs are numbers for consistent comparison
+                const numericExistingIds = existingIds.map(id => Number(id));
+                const numericProspectusId = Number(prospectus_id);
+                
                 // Only add the new ID if it's not already in the array (prevent duplicates)
-                if (!existingIds.includes(prospectus_id)) {
+                if (!numericExistingIds.includes(numericProspectusId)) {
+                    
                     // Create a new array with the existing IDs plus the new one
-                    const combinedIds = [...existingIds, prospectus_id];
+                    const combinedIds = [...numericExistingIds, numericProspectusId];
                     
                     // Step 4.2: Update the client with the new combined array of prospectus IDs
                     const { data: updatedClient, error: updateError } = await supabase
@@ -394,6 +401,7 @@ exports.createClient = async (req, res) => {
                         .single();
                     
                     if (updateError) {
+                        console.error('Error updating client with new prospectus ID:', updateError);
                         return res.status(400).json({
                             success: false,
                             error: 'Failed to update client with new prospectus ID: ' + updateError.message,
@@ -424,10 +432,11 @@ exports.createClient = async (req, res) => {
                         message: 'Email already exists. Added new prospectus ID to existing client.',
                         timestamp: new Date().toISOString()
                     });
+                } else {
+                    console.log(`Prospectus ID ${prospectus_id} is already in the client's array`);
                 }
             }
             
-            // Step 4.5: If no new prospectus ID or it's already in the array, return existing client
             // Fetch associated prospectus data for the response
             let prospectusData = [];
             if (existingClient.prospectus_ids && existingClient.prospectus_ids.length > 0) {
