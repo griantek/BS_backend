@@ -13,5 +13,7 @@ router.get('/email/:email', auth, clientController.getClientByEmail);
 router.post('/', auth, clientController.createClient);
 router.put('/:id', auth, clientController.updateClient);
 router.delete('/:id', auth, clientController.deleteClient);
+router.get('/:id/prospectus', clientController.getClientProspectus);
+router.get('/:id/registration/pending', clientController.getPendingClientRegistrations);
 
 module.exports = router;

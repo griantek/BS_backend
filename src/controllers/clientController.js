@@ -129,7 +129,7 @@ exports.getAllClients = async (req, res) => {
         if (allProspectusIds.size > 0) {
             const { data: prospectusData, error: prospectusError } = await supabase
                 .from('prospectus')
-                .select('id, client_name, mobile, email')
+                .select('id, client_name, phone, email')
                 .in('id', Array.from(allProspectusIds));
 
             if (!prospectusError && prospectusData) {
@@ -270,7 +270,7 @@ exports.getClientByEmail = async (req, res) => {
         if (data.prospectus_ids && data.prospectus_ids.length > 0) {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
-                .select('id, client_name, mobile, email')
+                .select('id, client_name, phone, email')
                 .in('id', data.prospectus_ids);
                 
             if (!prospectusError) {
@@ -496,7 +496,7 @@ exports.createClient = async (req, res) => {
         if (prospectusIdsArray.length > 0) {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
-                .select('id, client_name, email')
+                .select('id, client_name, phone, email')
                 .in('id', prospectusIdsArray);
                 
             if (!prospectusError) {
@@ -631,7 +631,7 @@ exports.updateClient = async (req, res) => {
         if (data.prospectus_ids && data.prospectus_ids.length > 0) {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
-                .select('id, client_name, email')
+                .select('id, client_name, phone, email')
                 .in('id', data.prospectus_ids);
                 
             if (!prospectusError) {
@@ -684,6 +684,179 @@ exports.deleteClient = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in deleteClient:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get all prospectus details for a client based on their ID
+ * 
+ * This function:
+ * 1. Fetches the client by ID to get their array of prospectus_ids
+ * 2. Uses those IDs to retrieve the full details of each prospectus
+ * 3. Returns all the prospectus data in the response
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.id - Client ID (UUID)
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with prospectus data or error
+ */
+exports.getClientProspectus = async (req, res) => {
+    console.log('Executing: getClientProspectus');
+    const { id } = req.params;
+
+    try {
+        // Step 1: Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('prospectus_ids')
+            .eq('id', id)
+            .single();
+
+        if (clientError) {
+            console.log('Error fetching client:', clientError);
+            return res.status(400).json({
+                success: false,
+                error: clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 3: Fetch all prospectus data for the IDs in the array
+        const { data: prospectusData, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select(`
+                *
+            `)
+            .in('id', client.prospectus_ids);
+
+        if (prospectusError) {
+            console.log('Error fetching prospectus data:', prospectusError);
+            return res.status(400).json({
+                success: false,
+                error: prospectusError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 4: Return the prospectus data
+        res.status(200).json({
+            success: true,
+            data: prospectusData,
+            count: prospectusData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getClientProspectus:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get pending prospectus details for a client based on their ID
+ * 
+ * This function:
+ * 1. Fetches the client by ID to get their array of prospectus_ids
+ * 2. Uses those IDs to retrieve only prospectus records where isregistered = 'pending'
+ * 3. Returns the filtered prospectus data in the response
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.id - Client ID (UUID)
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with pending prospectus data or error
+ */
+exports.getPendingClientRegistrations = async (req, res) => {
+    console.log('Executing: getPendingClientProspectus');
+    const { id } = req.params;
+
+    try {
+        // Step 1: Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('prospectus_ids')
+            .eq('id', id)
+            .single();
+
+        if (clientError) {
+            console.log('Error fetching client:', clientError);
+            return res.status(400).json({
+                success: false,
+                error: clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 3: Fetch pending prospectus data for the IDs in the array
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .select('*')
+            .in('prospectus_id', client.prospectus_ids)
+            .eq('status', 'pending');
+
+        if (registrationError) {
+            console.log('Error fetching pending registration data:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 4: Return the pending prospectus data
+        res.status(200).json({
+            success: true,
+            data: registrationData,
+            count: registrationData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getPendingClientRegistration:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',
