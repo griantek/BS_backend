@@ -637,3 +637,187 @@ exports.getPermissionsByEntityType = async (req, res) => {
         });
     }
 };
+
+//====================================
+// Registration Management
+//====================================
+
+exports.approveRegistration = async (req, res) => {
+    try {
+        console.log('Executing: approveRegistration');
+
+        // Fetch all registration entries where admin_assigned is false
+        const { data: registrations, error: regError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    *,
+                    leads:leads_id(*),
+                    entities:entity_id(id, username, email)
+                ),
+                registered_by_details:registered_by(id, username, email),
+                bank_details:bank_id(*),
+                transaction_details:transaction_id(*)
+            `)
+            .eq('admin_assigned', false)
+            .order('created_at', { ascending: false });
+
+        if (regError) {
+            console.log('Error fetching registrations:', regError);
+            return res.status(400).json({
+                success: false,
+                error: regError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Process and format the data
+        const formattedData = registrations.map(reg => {
+            return {
+                registration: {
+                    id: reg.id,
+                    date: reg.date,
+                    services: reg.services,
+                    initialAmount: reg.init_amount,
+                    acceptedAmount: reg.accept_amount,
+                    discount: reg.discount,
+                    totalAmount: reg.total_amount,
+                    acceptPeriod: reg.accept_period,
+                    pubPeriod: reg.pub_period,
+                    status: reg.status,
+                    month: reg.month,
+                    year: reg.year,
+                    notes: reg.notes,
+                    createdAt: reg.created_at,
+                    updatedAt: reg.updated_at,
+                    adminAssigned: reg.admin_assigned
+                },
+                prospectus: reg.prospectus ? {
+                    id: reg.prospectus.id,
+                    regId: reg.prospectus.reg_id,
+                    clientName: reg.prospectus.client_name,
+                    email: reg.prospectus.email,
+                    phone: reg.prospectus.phone,
+                    department: reg.prospectus.department,
+                    state: reg.prospectus.state,
+                    techPerson: reg.prospectus.tech_person,
+                    requirement: reg.prospectus.requirement,
+                    services: reg.prospectus.services,
+                    proposedServicePeriod: reg.prospectus.proposed_service_period,
+                    notes: reg.prospectus.notes,
+                    nextFollowUp: reg.prospectus.next_follow_up,
+                    createdBy: reg.prospectus.entities ? {
+                        id: reg.prospectus.entities.id,
+                        username: reg.prospectus.entities.username,
+                        email: reg.prospectus.entities.email
+                    } : null
+                } : null,
+                leads: reg.prospectus?.leads ? {
+                    id: reg.prospectus.leads.id,
+                    date: reg.prospectus.leads.date,
+                    leadSource: reg.prospectus.leads.lead_source,
+                    clientName: reg.prospectus.leads.client_name,
+                    phoneNumber: reg.prospectus.leads.phone_number,
+                    domain: reg.prospectus.leads.domain,
+                    researchArea: reg.prospectus.leads.research_area,
+                    title: reg.prospectus.leads.title,
+                    degree: reg.prospectus.leads.degree,
+                    university: reg.prospectus.leads.university,
+                    state: reg.prospectus.leads.state,
+                    country: reg.prospectus.leads.country,
+                    requirement: reg.prospectus.leads.requirement,
+                    detailedRequirement: reg.prospectus.leads.detailed_requirement,
+                    prospectusType: reg.prospectus.leads.prospectus_type,
+                    followupDate: reg.prospectus.leads.followup_date,
+                    remarks: reg.prospectus.leads.remarks,
+                    followupStatus: reg.prospectus.leads.followup_status,
+                    createdAt: reg.prospectus.leads.created_at,
+                    updatedAt: reg.prospectus.leads.updated_at
+                } : null,
+                registeredBy: reg.registered_by_details ? {
+                    id: reg.registered_by_details.id,
+                    username: reg.registered_by_details.username,
+                    email: reg.registered_by_details.email
+                } : null,
+                bankDetails: reg.bank_details || null,
+                transactionDetails: reg.transaction_details || null
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            data: formattedData,
+            count: formattedData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in approveRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.assignRegistration = async (req, res) => {
+    try {
+        console.log('Executing: assignRegistration');
+        const { registrationId } = req.params;
+        const { assigned_to } = req.body;
+
+        // Validate required fields
+        if (!assigned_to) {
+            return res.status(400).json({
+                success: false,
+                error: 'assigned_to field is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration record
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                assigned_to,
+                admin_assigned: true,
+                status: 'registered',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registrationId)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error assigning registration:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Registration assigned successfully',
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in assignRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};

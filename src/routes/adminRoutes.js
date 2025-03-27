@@ -11,7 +11,9 @@ const {
     deleteRole,
     getAllPermissions,
     getRoleWithPermissions,
-    getPermissionsByEntityType  // Add this new import
+    getPermissionsByEntityType,
+    approveRegistration,
+    assignRegistration  // Add this new import
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 
@@ -36,5 +38,9 @@ router.get('/roles/:id/permissions',  getRoleWithPermissions);
 // Permissions
 router.get('/permissions/all',auth,  getAllPermissions);
 router.get('/permissions/entity-type/:entity_type',auth, getPermissionsByEntityType);  // Add this new route
+
+// Registration Management routes
+router.get('/registrations/pending', auth, approveRegistration);
+router.put('/registrations/:registrationId/assign', auth, assignRegistration); // Add this new route
 
 module.exports = router;

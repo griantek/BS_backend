@@ -13,7 +13,8 @@ const {
     updateExecutive,
     loginLeads, // Add this import
     getAllEntites,
-    getAllAuthors
+    getAllAuthors,
+    getAllEditorsAndAuthors // Add this new import
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -22,7 +23,6 @@ const router = express.Router();
 // Executive routes
 router.post('/create', createExecutive);
 router.post('/login', loginExecutive);
-router.get('/all', auth, getAllEntites);
 router.put('/:id', auth, updateExecutive);
 
 // Leads login route
@@ -39,8 +39,10 @@ router.put('/prospectus/:id', auth, updateProspectus); // Add this new route
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
 
 // Add this new route with your other routes
+router.get('/all', auth, getAllEntites);
 router.get('/editors/all', getAllEditors);
 router.get('/author/all', getAllAuthors);
 router.get('/exec/all', getAllExecutives);
+router.get('/editors-authors/all',  getAllEditorsAndAuthors); // New combined route
 
 module.exports = router;

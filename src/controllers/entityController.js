@@ -766,3 +766,64 @@ exports.getAllExecutives = async (req, res) => {
     });
   }
 };
+
+exports.getAllEditorsAndAuthors = async (req, res) => {
+  console.log('Executing: getAllEditorsAndAuthors');
+  
+  try {
+    const { data: entities, error } = await supabase
+      .from('entities')
+      .select(`
+        id, 
+        username,
+        email,
+        role_details:roles!inner(
+          id,
+          name,
+          entity_type
+        )
+      `)
+      .in('role_details.entity_type', ['Editor', 'Author'])
+      .order('username', { ascending: true });
+
+    if (error) {
+      console.log('Error fetching editors and authors:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Group by role type
+    // const editors = entities.filter(entity => entity.role_details.entity_type === 'Editor');
+    // const authors = entities.filter(entity => entity.role_details.entity_type === 'Author');
+
+    // res.status(200).json({
+    //   success: true,
+    //   data: {
+    //     editors,
+    //     authors,
+    //     all: entities
+    //   },
+    //   counts: {
+    //     editors: editors.length,
+    //     authors: authors.length,
+    //     total: entities.length
+    //   },
+    //   timestamp: new Date().toISOString()
+    // });
+    res.status(200).json({
+      success: true,
+      data: entities,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getAllEditorsAndAuthors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
