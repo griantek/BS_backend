@@ -210,6 +210,7 @@ exports.createJournalData = async (req, res) => {
             journal_link: journal_link ? encryptText(journal_link) : null
         };
 
+        // Insert journal data
         const { data, error } = await supabase
             .from('journal_data')
             .insert([{
@@ -231,6 +232,26 @@ exports.createJournalData = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Update registration table to set journal_added flag to true
+        if (prospectus_id && assigned_to) {
+            console.log('Updating registration journal_added flag');
+            const { error: updateError } = await supabase
+                .from('registration')
+                .update({
+                    journal_added: true,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('prospectus_id', prospectus_id)
+                .eq('assigned_to', assigned_to);
+
+            if (updateError) {
+                console.error('Error updating registration journal_added flag:', updateError);
+                // Continue with response since the journal data was created successfully
+            } else {
+                console.log('Successfully updated registration journal_added flag');
+            }
+        }
 
         // Decrypt the sensitive fields for the response
         const decryptedResponse = {
