@@ -416,31 +416,31 @@ exports.getAssignedRegistrations = async (req, res) => {
     const { executive_id } = req.params;
 
     try {
-        // First get all prospectus_ids that are already in journal_data
-        const { data: journalData, error: journalError } = await supabase
-            .from('journal_data')
-            .select('prospectus_id');
-
-        if (journalError) throw journalError;
-
-        // Get the list of prospectus_ids to exclude
-        const existingProspectusIds = journalData.map(j => j.prospectus_id).filter(Boolean);
-        
-        // Step 1: Get registrations with status 'registered' and assigned to the executive
+        // Get registrations with joined prospectus data in a single query
         const { data: registrations, error: registrationError } = await supabase
             .from('registration')
-            .select('*, prospectus_id')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    id, 
+                    client_name, 
+                    reg_id, 
+                    requirement, 
+                    email,
+                    entity:entity_id (
+                        id,
+                        username,
+                        email
+                    )
+                )
+            `)
             .eq('assigned_to', executive_id)
-            .eq('status', 'registered');
+            .eq('status', 'registered')
+            .eq('journal_added', false);
             
         if (registrationError) throw registrationError;
         
-        // Filter out registrations whose prospectus_ids are already in journal_data
-        const filteredRegistrations = registrations.filter(reg => 
-            !existingProspectusIds.includes(reg.prospectus_id)
-        );
-        
-        if (filteredRegistrations.length === 0) {
+        if (!registrations || registrations.length === 0) {
             return res.status(200).json({
                 success: true,
                 data: [],
@@ -448,39 +448,10 @@ exports.getAssignedRegistrations = async (req, res) => {
             });
         }
         
-        // Step 2: Fetch prospectus details for the filtered registrations
-        const prospectusIds = filteredRegistrations.map(reg => reg.prospectus_id);
-        
-        const { data: prospectusData, error: prospectusError } = await supabase
-            .from('prospectus')
-            .select(`
-                id, 
-                client_name, 
-                reg_id, 
-                requirement, 
-                email,
-                entity:entity_id (
-                    id,
-                    username,
-                    email
-                )
-            `)
-            .in('id', prospectusIds);
-            
-        if (prospectusError) throw prospectusError;
-        
-        // Step 3: Combine the data
-        const combinedData = filteredRegistrations.map(registration => {
-            const prospectus = prospectusData.find(p => p.id === registration.prospectus_id);
-            return {
-                ...registration,
-                prospectus: prospectus || null
-            };
-        });
-
+        // The data is already in the format we need from the joined query
         res.status(200).json({
             success: true,
-            data: combinedData,
+            data: registrations,
             timestamp: new Date().toISOString()
         });
 
