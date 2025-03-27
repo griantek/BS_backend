@@ -527,6 +527,55 @@ exports.getProspectusAssistData = async (req, res) => {
     }
 };
 
+exports.getJournalDataByEditor = async (req, res) => {
+    console.log('Executing: getJournalDataByEditor');
+    const { editorId } = req.params;
+    
+    try {
+        // Simple validation
+        if (!editorId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Editor ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('assigned_to', editorId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            count: data.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data by editor:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 // Alternative version getting data from prospectus table
 /*
 exports.createJournalDataFromProspectus = async (req, res) => {
