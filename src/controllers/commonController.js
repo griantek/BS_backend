@@ -816,11 +816,13 @@ exports.createRegistration = async (req, res) => {
                 transaction_id: transactionData.id,
                 notes,
                 registered_by,
-                client_id
+                client_id,
+                author_status: 'not started', // Other status are in_progress, completed, submitted, revised
             }])
             .select()
             .single();
-
+        
+        
         if (registrationError) {
             console.log('Error creating registration:', registrationError);
             // You might want to delete the transaction if registration fails
@@ -1101,7 +1103,7 @@ exports.approveRegistration = async (req, res) => {
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
             .update({
-                status: 'registered',
+                status: 'waiting for approval',
                 assigned_to: req.body.assigned_to || null  // Add this line
             })
             .eq('id', id)
