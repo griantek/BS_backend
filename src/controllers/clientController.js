@@ -53,7 +53,7 @@ exports.loginClient = async (req, res) => {
     }
 
     try {
-        // Now get the full client data with prospectus
+        // Get client data from database
         const { data, error } = await supabase
             .from('clients')
             .select(`*`)
@@ -69,9 +69,14 @@ exports.loginClient = async (req, res) => {
             });
         }
 
-        // Verify password
-        const decryptedPassword = decryptText(data.password);
-        if (password !== decryptedPassword) {
+        // Encrypt the input password and compare with stored encrypted password
+        const encryptedInputPassword = encryptText(password);
+        console.log('Password comparison:');
+        console.log('Input password encrypted:', `"${encryptedInputPassword}"`);
+        console.log('Stored encrypted password:', `"${data.password}"`);
+
+        // Compare encrypted passwords
+        if (encryptedInputPassword !== data.password) {
             console.log('Password mismatch for client:', email);
             return res.status(401).json({
                 success: false,
@@ -485,8 +490,8 @@ exports.createClient = async (req, res) => {
         }
 
         // Step 5: If client doesn't exist, create a new client record
-        // Encrypt the password for secure storage
-        const encryptedPassword = encryptText(password);
+        // Leave password as-is - don't trim it to maintain consistency
+        const encryptedPassword = encryptText(password || '');
         
         // Create an array with the prospectus_id if provided, or empty array if not
         const prospectusIdsArray = prospectus_id ? [prospectus_id] : [];
@@ -625,6 +630,7 @@ exports.updateClient = async (req, res) => {
         }
 
         if (password) {
+            // Don't trim the password - let encryption handle it as-is
             updateData.password = encryptText(password);
         }
 

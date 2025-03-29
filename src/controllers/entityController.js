@@ -1057,3 +1057,110 @@ exports.changePassword = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get journal data connected to prospectus created by a specific user
+ * 
+ * This function directly queries journal data associated with prospectus records
+ * created by the specified user, eliminating the need for the leads table.
+ */
+exports.getJournalDataByExecutive = async (req, res) => {
+  console.log('Executing: getJournalDataByLeads');
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({
+      success: false,
+      error: 'User ID is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // First, get all prospectus IDs created by this user
+    const { data: prospectusRecords, error: prospectusError } = await supabase
+      .from('prospectus')
+      .select('id')
+      .eq('entity_id', user_id);
+
+    if (prospectusError) {
+      console.error('Error fetching prospectus records:', prospectusError);
+      return res.status(400).json({
+        success: false,
+        error: prospectusError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // If no prospectus found, return empty array
+    if (!prospectusRecords || prospectusRecords.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        message: 'No prospectus records found for this user',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Extract prospectus IDs
+    const prospectusIds = prospectusRecords.map(p => p.id);
+
+    // Then get journal data for these prospectus IDs
+    const { data: journalData, error: journalError } = await supabase
+      .from('journal_data')
+      .select(`
+        *,
+        prospectus:prospectus_id(
+          id,
+          reg_id,
+          client_name,
+          email,
+          phone,
+          requirement,
+          entity_id
+        ),
+        entities:assigned_to(
+          id,
+          username,
+          email
+        )
+      `)
+      .in('prospectus_id', prospectusIds)
+      .order('created_at', { ascending: false });
+
+    if (journalError) {
+      console.error('Error fetching journal data:', journalError);
+      return res.status(400).json({
+        success: false,
+        error: journalError.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Process journals if needed
+    const processedJournals = journalData.map(journal => {
+      // If there are any decryption or transformation needs, handle here
+      return {
+        ...journal,
+        // For sensitive fields like passwords, etc. you might want to exclude them
+        username: journal.username ? 'ENCRYPTED' : null,
+        password: journal.password ? 'ENCRYPTED' : null
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: processedJournals,
+      count: processedJournals.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getJournalDataByLeads:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};

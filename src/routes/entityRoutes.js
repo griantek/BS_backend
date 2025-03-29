@@ -17,7 +17,9 @@ const {
     getAllEditorsAndAuthors, // Add this new import
     updateUserProfile,
     verifyPassword, // Add this new import
-    changePassword // Add this new import
+    changePassword, // Add this new import
+    getJournalDataByLeads, // Add this new import
+    getJournalDataByExecutive
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -52,5 +54,8 @@ router.get('/editors-authors/all',  getAllEditorsAndAuthors); // New combined ro
 router.post('/verify-password', auth, verifyPassword);
 router.put('/:id/user-profile', auth, updateUserProfile);
 router.put('/:id/change-password', auth, changePassword);
+
+// Add this route for getting journal data from leads
+router.post('/journal-data-by-executive',  getJournalDataByExecutive);
 
 module.exports = router;
