@@ -14,7 +14,10 @@ const {
     loginLeads, // Add this import
     getAllEntites,
     getAllAuthors,
-    getAllEditorsAndAuthors // Add this new import
+    getAllEditorsAndAuthors, // Add this new import
+    updateUserProfile,
+    verifyPassword, // Add this new import
+    changePassword // Add this new import
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -44,5 +47,10 @@ router.get('/editors/all', getAllEditors);
 router.get('/author/all', getAllAuthors);
 router.get('/exec/all', getAllExecutives);
 router.get('/editors-authors/all',  getAllEditorsAndAuthors); // New combined route
+
+// Add new routes for profile management
+router.post('/verify-password', auth, verifyPassword);
+router.put('/:id/user-profile', auth, updateUserProfile);
+router.put('/:id/change-password', auth, changePassword);
 
 module.exports = router;

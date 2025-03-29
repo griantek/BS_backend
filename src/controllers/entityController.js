@@ -795,24 +795,6 @@ exports.getAllEditorsAndAuthors = async (req, res) => {
       });
     }
 
-    // Group by role type
-    // const editors = entities.filter(entity => entity.role_details.entity_type === 'Editor');
-    // const authors = entities.filter(entity => entity.role_details.entity_type === 'Author');
-
-    // res.status(200).json({
-    //   success: true,
-    //   data: {
-    //     editors,
-    //     authors,
-    //     all: entities
-    //   },
-    //   counts: {
-    //     editors: editors.length,
-    //     authors: authors.length,
-    //     total: entities.length
-    //   },
-    //   timestamp: new Date().toISOString()
-    // });
     res.status(200).json({
       success: true,
       data: entities,
@@ -820,6 +802,235 @@ exports.getAllEditorsAndAuthors = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in getAllEditorsAndAuthors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Verify user password
+ * 
+ * This function checks if the provided password matches the stored password for an entity
+ */
+exports.verifyPassword = async (req, res) => {
+  console.log('Executing: verifyPassword');
+  const { entityId, password } = req.body;
+
+  if (!entityId || !password) {
+    return res.status(400).json({
+      success: false,
+      error: 'Entity ID and password are required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Fetch the entity with the hashed password
+    const { data: entity, error } = await supabase
+      .from('entities')
+      .select('password')
+      .eq('id', entityId)
+      .single();
+
+    if (error || !entity) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Compare the provided password with the stored hash
+    const isPasswordValid = await bcrypt.compare(password, entity.password);
+
+    // Return error response if password is invalid
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid password',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Only return success if password is valid
+    res.status(200).json({
+      success: true,
+      message: 'Password verification successful',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred while verifying password',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Update user profile information
+ * 
+ * This function allows updating username and email for an entity
+ */
+exports.updateUserProfile = async (req, res) => {
+  console.log('Executing: updateUserProfile');
+  const { id } = req.params;
+  const { username, email } = req.body;
+
+  // Check if at least one field is provided for update
+  if (!username && !email) {
+    return res.status(400).json({
+      success: false,
+      error: 'At least one field (username or email) must be provided for update',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // First check if the entity exists
+    const { data: existingEntity, error: checkError } = await supabase
+      .from('entities')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !existingEntity) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (username) {
+      updateData.username = username;
+    }
+
+    if (email) {
+      // Check if email is already in use by another entity
+      if (email) {
+        const { data: emailCheck, error: emailCheckError } = await supabase
+          .from('entities')
+          .select('id')
+          .eq('email', email)
+          .neq('id', id);
+
+        if (!emailCheckError && emailCheck && emailCheck.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Email is already in use by another user',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      updateData.email = email;
+    }
+
+    // Update the entity
+    const { data, error } = await supabase
+      .from('entities')
+      .update(updateData)
+      .eq('id', id)
+      .select('id, username, email, created_at, updated_at, role')
+      .single();
+
+    if (error) {
+      console.error('Error updating user profile:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data,
+      message: 'Profile updated successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in updateUserProfile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Change user password
+ * 
+ * This function allows an entity to change their password
+ */
+exports.changePassword = async (req, res) => {
+  console.log('Executing: changePassword');
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({
+      success: false,
+      error: 'New password is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Check if the entity exists
+    const { data: existingEntity, error: checkError } = await supabase
+      .from('entities')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !existingEntity) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_SALT_ROUNDS));
+
+    // Update the password
+    const { data, error } = await supabase
+      .from('entities')
+      .update({
+        password: hashedPassword,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error changing password:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in changePassword:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',

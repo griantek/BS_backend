@@ -1,6 +1,26 @@
 const supabase = require('../utils/supabaseClient');
 const jwt = require('jsonwebtoken');
 const { encryptText, decryptText } = require('../utils/encryption');
+const multer = require('multer');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+
+// Use memory storage for temporary file handling
+const paymentStorage = multer.memoryStorage();
+const uploadPaymentFiles = multer({
+    storage: paymentStorage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: function (req, file, cb) {
+        // Accept documents and image files
+        const allowedFileTypes = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.txt'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedFileTypes.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, DOC, DOCX, JPG, JPEG, PNG, and TXT files are allowed.'));
+        }
+    }
+}).array('files', 5); // Allow up to 5 files
 
 //====================================
 // Client Controllers
@@ -863,4 +883,133 @@ exports.getPendingClientRegistrations = async (req, res) => {
             timestamp: new Date().toISOString()
         });
     }
+};
+
+exports.submitClientPayment = async (req, res) => {
+    console.log('Executing: submitClientPayment');
+    
+    uploadPaymentFiles(req, res, async function (err) {
+        if (err instanceof multer.MulterError) {
+            return res.status(400).json({
+                success: false,
+                error: `File upload error: ${err.message}`,
+                timestamp: new Date().toISOString()
+            });
+        } else if (err) {
+            return res.status(400).json({
+                success: false,
+                error: err.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // After successful upload, process the payment data
+        const { quotation_id, name, amount, notes, transaction_date, entity_id } = req.body;
+        
+        if (!quotation_id || !name || !amount) {
+            return res.status(400).json({
+                success: false,
+                error: 'Quotation ID, name, and amount are required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        try {
+            // Verify the quotation exists
+            const { data: quotation, error: quotationError } = await supabase
+                .from('quotations')
+                .select('id, prospectus_id')
+                .eq('id', quotation_id)
+                .single();
+
+            if (quotationError || !quotation) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Quotation not found',
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // Prepare payment record
+            const paymentData = {
+                quotation_id: parseInt(quotation_id),
+                name,
+                amount: parseFloat(amount),
+                notes: notes || null,
+                transaction_date: transaction_date || new Date().toISOString().split('T')[0],
+                entity_id: entity_id || null,
+                created_at: new Date().toISOString(),
+                status: 'pending', // Default status
+                prospectus_id: quotation.prospectus_id // Link to the associated prospectus
+            };
+            
+            // Upload files to Supabase storage if provided
+            let fileUrls = [];
+            if (req.files && req.files.length > 0) {
+                for (const file of req.files) {
+                    const fileExt = path.extname(file.originalname);
+                    const fileName = `${uuidv4()}${fileExt}`;
+                    const filePath = `payments/${quotation_id}/${fileName}`;
+                    
+                    // Upload to Supabase storage
+                    const { data: uploadData, error: uploadError } = await supabase
+                        .storage
+                        .from('client-payments')
+                        .upload(filePath, file.buffer, {
+                            contentType: file.mimetype,
+                            cacheControl: '3600'
+                        });
+                    
+                    if (uploadError) {
+                        console.error('File upload error:', uploadError);
+                        throw uploadError;
+                    }
+                    
+                    // Get public URL for the file
+                    const { data: publicUrlData } = supabase
+                        .storage
+                        .from('client-payments')
+                        .getPublicUrl(filePath);
+                    
+                    fileUrls.push({
+                        originalName: file.originalname,
+                        storagePath: filePath,
+                        url: publicUrlData.publicUrl,
+                        size: file.size,
+                        type: file.mimetype
+                    });
+                }
+                
+                // Add file URLs to payment data
+                paymentData.files = fileUrls;
+            }
+            
+            // Insert the payment record into the database
+            const { data: payment, error: paymentError } = await supabase
+                .from('client_payments')
+                .insert([paymentData])
+                .select()
+                .single();
+
+            if (paymentError) {
+                console.error('Error saving payment:', paymentError);
+                throw paymentError;
+            }
+
+            // Return success response with payment data
+            res.status(201).json({
+                success: true,
+                data: payment,
+                message: 'Payment submitted successfully',
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error processing payment:', error);
+            res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
 };

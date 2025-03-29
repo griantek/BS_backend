@@ -1377,3 +1377,39 @@ exports.deleteDepartment = async (req, res) => {
         });
     }
 };
+
+//====================================
+// Password Decryption
+//====================================
+exports.decryptPassword = async (req, res) => {
+    console.log('Executing: decryptPassword');
+    const { encryptedPassword } = req.body;
+
+    try {
+        if (!encryptedPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Encrypted password is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const { decryptText } = require('../utils/encryption');
+        const decryptedPassword = decryptText(encryptedPassword);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                decryptedPassword
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error decrypting password:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};

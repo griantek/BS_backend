@@ -16,4 +16,7 @@ router.delete('/:id', auth, clientController.deleteClient);
 router.get('/:id/prospectus', clientController.getClientProspectus);
 router.get('/:id/registration/pending', clientController.getPendingClientRegistrations);
 
+// Client payment endpoint
+router.post('/payment/submit', auth, clientController.submitClientPayment);
+
 module.exports = router;
