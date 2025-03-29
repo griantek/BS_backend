@@ -530,6 +530,14 @@ exports.getProspectusAssistData = async (req, res) => {
 exports.getJournalDataByEditor = async (req, res) => {
     console.log('Executing: getJournalDataByEditor');
     const { editorId } = req.params;
+    const { 
+        page = 1, 
+        limit = 10, 
+        status, 
+        sortBy = 'created_at', 
+        sortOrder = 'desc',
+        searchTerm = '' 
+    } = req.query;
     
     try {
         // Simple validation
@@ -541,7 +549,13 @@ exports.getJournalDataByEditor = async (req, res) => {
             });
         }
 
-        const { data, error } = await supabase
+        // Calculate pagination values
+        const pageNumber = parseInt(page, 10);
+        const pageSize = parseInt(limit, 10);
+        const offset = (pageNumber - 1) * pageSize;
+
+        // Build the query
+        let query = supabase
             .from('journal_data')
             .select(`
                 *,
@@ -554,16 +568,45 @@ exports.getJournalDataByEditor = async (req, res) => {
                     id,
                     reg_id
                 )
-            `)
-            .eq('assigned_to', editorId)
-            .order('created_at', { ascending: false });
+            `, { count: 'exact' })
+            .eq('assigned_to', editorId);
+
+        // Apply status filter if provided
+        if (status) {
+            query = query.eq('status', status);
+        }
+
+        // Apply search filters if provided
+        if (searchTerm) {
+            query = query.or(`client_name.ilike.%${searchTerm}%,journal_name.ilike.%${searchTerm}%,paper_title.ilike.%${searchTerm}%`);
+        }
+
+        // Apply sorting
+        const sortDirection = sortOrder.toLowerCase() === 'asc' ? true : false;
+        query = query.order(sortBy, { ascending: sortDirection });
+
+        // Apply pagination
+        query = query.range(offset, offset + pageSize - 1);
+
+        // Execute the query
+        const { data, error, count } = await query;
 
         if (error) throw error;
+
+        // Calculate pagination metadata
+        const totalPages = Math.ceil(count / pageSize);
+        const hasMore = pageNumber < totalPages;
 
         res.status(200).json({
             success: true,
             data,
-            count: data.length,
+            pagination: {
+                page: pageNumber,
+                limit: pageSize,
+                total: count,
+                totalPages,
+                hasMore
+            },
             timestamp: new Date().toISOString()
         });
     } catch (error) {
