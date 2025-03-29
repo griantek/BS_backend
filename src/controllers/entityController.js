@@ -81,6 +81,7 @@ exports.loginExecutive = async (req, res) => {
         username: executive.username,
         email: executive.email,
         entity_type: executive.role_details?.entity_type || 'Executive',
+        is_protected: executive.is_protected,
         role: {
           id: executive.role_details?.id,
           name: executive.role_details?.name || 'No Role',
@@ -600,7 +601,7 @@ exports.updateExecutive = async (req, res) => {
 
     // Update executive
     const { data, error } = await supabase
-      .from('entities')  // Changed from 'executive'
+      .from('entities')
       .update(updateData)
       .eq('id', id)
       .select('id, username, email, role, created_at, updated_at') // Exclude password from response
@@ -876,6 +877,7 @@ exports.verifyPassword = async (req, res) => {
  * Update user profile information
  * 
  * This function allows updating username and email for an entity
+ * if the entity is not protected (is_protected = false)
  */
 exports.updateUserProfile = async (req, res) => {
   console.log('Executing: updateUserProfile');
@@ -892,10 +894,10 @@ exports.updateUserProfile = async (req, res) => {
   }
 
   try {
-    // First check if the entity exists
+    // First check if the entity exists and if it is protected
     const { data: existingEntity, error: checkError } = await supabase
       .from('entities')
-      .select('id')
+      .select('id, is_protected')
       .eq('id', id)
       .single();
 
@@ -903,6 +905,15 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if entity is protected
+    if (existingEntity.is_protected) {
+      return res.status(403).json({
+        success: false,
+        error: 'This entity is protected and cannot be modified',
         timestamp: new Date().toISOString()
       });
     }
@@ -918,20 +929,18 @@ exports.updateUserProfile = async (req, res) => {
 
     if (email) {
       // Check if email is already in use by another entity
-      if (email) {
-        const { data: emailCheck, error: emailCheckError } = await supabase
-          .from('entities')
-          .select('id')
-          .eq('email', email)
-          .neq('id', id);
+      const { data: emailCheck, error: emailCheckError } = await supabase
+        .from('entities')
+        .select('id')
+        .eq('email', email)
+        .neq('id', id);
 
-        if (!emailCheckError && emailCheck && emailCheck.length > 0) {
-          return res.status(400).json({
-            success: false,
-            error: 'Email is already in use by another user',
-            timestamp: new Date().toISOString()
-          });
-        }
+      if (!emailCheckError && emailCheck && emailCheck.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email is already in use by another user',
+          timestamp: new Date().toISOString()
+        });
       }
       updateData.email = email;
     }
@@ -973,6 +982,7 @@ exports.updateUserProfile = async (req, res) => {
  * Change user password
  * 
  * This function allows an entity to change their password
+ * if the entity is not protected (is_protected = false)
  */
 exports.changePassword = async (req, res) => {
   console.log('Executing: changePassword');
@@ -988,10 +998,10 @@ exports.changePassword = async (req, res) => {
   }
 
   try {
-    // Check if the entity exists
+    // Check if the entity exists and if it is protected
     const { data: existingEntity, error: checkError } = await supabase
       .from('entities')
-      .select('id')
+      .select('id, is_protected')
       .eq('id', id)
       .single();
 
@@ -999,6 +1009,15 @@ exports.changePassword = async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if entity is protected
+    if (existingEntity.is_protected) {
+      return res.status(403).json({
+        success: false,
+        error: 'This entity is protected and cannot have its password changed',
         timestamp: new Date().toISOString()
       });
     }
