@@ -435,6 +435,11 @@ exports.getProspectusByRegId = async (req, res) => {
       .single();
 
     if (error) {
+      console.log('Error fetching prospectus by regId:', {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
       return res.status(400).json({
         success: false,
         error: error.message,

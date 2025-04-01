@@ -20,7 +20,7 @@ const uploadPaymentFiles = multer({
             cb(new Error('Invalid file type. Only PDF, DOC, DOCX, JPG, JPEG, PNG, and TXT files are allowed.'));
         }
     }
-}).array('files', 5); // Allow up to 5 files
+}).array('files[]', 5); // Changed 'files' to 'files[]' to match the field name sent from frontend
 
 //====================================
 // Client Controllers
@@ -859,9 +859,24 @@ exports.getPendingClientRegistrations = async (req, res) => {
         }
 
         // Step 3: Fetch pending prospectus data for the IDs in the array
+        // with related prospectus data and bank account details
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
-            .select('*')
+            .select(`
+                *,
+                prospectus:prospectus_id(*),
+                bank_accounts:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                )
+            `)
             .in('prospectus_id', client.prospectus_ids)
             .eq('status', 'pending');
 
@@ -875,6 +890,13 @@ exports.getPendingClientRegistrations = async (req, res) => {
         }
 
         // Step 4: Return the pending prospectus data
+        // console.log('Pending registration data:', {
+        //     success: true,
+        //     data: registrationData,
+        //     count: registrationData.length,
+        //     timestamp: new Date().toISOString()
+        // });
+        
         res.status(200).json({
             success: true,
             data: registrationData,
@@ -883,6 +905,7 @@ exports.getPendingClientRegistrations = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getPendingClientRegistration:', error);
+        console.error('Error stack trace:', error.stack);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',
@@ -892,16 +915,28 @@ exports.getPendingClientRegistrations = async (req, res) => {
 };
 
 exports.submitClientPayment = async (req, res) => {
-    console.log('Executing: submitClientPayment');
+    console.log('Executing: submitClientPayment', req.body);
+    console.log('Request files before upload:', req.files); // Log files before upload to check if they exist
+    console.log('Form field names:', Object.keys(req.body));
     
     uploadPaymentFiles(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
+            console.error('Multer upload error:', err);
+            // If the error is about field name, provide more helpful error message
+            if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+                return res.status(400).json({
+                    success: false,
+                    error: `File upload error: The form field "${err.field}" doesn't match the expected field name. Please use "files[]" for the file input field.`,
+                    timestamp: new Date().toISOString()
+                });
+            }
             return res.status(400).json({
                 success: false,
                 error: `File upload error: ${err.message}`,
                 timestamp: new Date().toISOString()
             });
         } else if (err) {
+            console.error('General upload error:', err);
             return res.status(400).json({
                 success: false,
                 error: err.message,
@@ -909,73 +944,125 @@ exports.submitClientPayment = async (req, res) => {
             });
         }
         
-        // After successful upload, process the payment data
-        const { quotation_id, name, amount, notes, transaction_date, entity_id } = req.body;
+        // Log files after multer processing
+        console.log('Files after multer processing:', req.files);
+        console.log('Request body after file upload:', req.body);
         
-        if (!quotation_id || !name || !amount) {
+        // After successful upload, process the payment data
+        const { quotation_id, name, amount, notes, transaction_date, client_id } = req.body;
+        
+        if (!quotation_id || !name || !amount || !client_id) {
+            console.log('Missing required fields:', { quotation_id, name, amount, client_id });
             return res.status(400).json({
                 success: false,
-                error: 'Quotation ID, name, and amount are required',
+                error: 'Registration ID, name, amount, and client ID are required',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Check if files are included in the request - files are mandatory
+        if (!req.files || req.files.length === 0) {
+            console.error('No files were provided in the request');
+            return res.status(400).json({
+                success: false,
+                error: 'Payment proof files are required. Please upload at least one file.',
                 timestamp: new Date().toISOString()
             });
         }
 
         try {
-            // Verify the quotation exists
-            const { data: quotation, error: quotationError } = await supabase
-                .from('quotations')
+            // Verify the registration record exists
+            const { data: registration, error: registrationError } = await supabase
+                .from('registration')
                 .select('id, prospectus_id')
                 .eq('id', quotation_id)
                 .single();
 
-            if (quotationError || !quotation) {
+            if (registrationError) {
+                console.error('Error fetching registration:', registrationError);
                 return res.status(404).json({
                     success: false,
-                    error: 'Quotation not found',
+                    error: 'Error retrieving registration: ' + registrationError.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
+            if (!registration) {
+                console.log(`Registration with ID ${quotation_id} not found`);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Registration not found',
                     timestamp: new Date().toISOString()
                 });
             }
 
-            // Prepare payment record
+            // Prepare payment record according to the quotations table schema
             const paymentData = {
-                quotation_id: parseInt(quotation_id),
+                reg_id: parseInt(quotation_id),
                 name,
                 amount: parseFloat(amount),
                 notes: notes || null,
                 transaction_date: transaction_date || new Date().toISOString().split('T')[0],
-                entity_id: entity_id || null,
+                client_id: client_id,  // Using client_id as per schema
                 created_at: new Date().toISOString(),
-                status: 'pending', // Default status
-                prospectus_id: quotation.prospectus_id // Link to the associated prospectus
+                updated_at: new Date().toISOString(),
+                prospectus_id: registration.prospectus_id
             };
             
-            // Upload files to Supabase storage if provided
+            console.log('Processing payment with data:', paymentData);
+            
+            // Upload files to Supabase storage
             let fileUrls = [];
-            if (req.files && req.files.length > 0) {
-                for (const file of req.files) {
-                    const fileExt = path.extname(file.originalname);
-                    const fileName = `${uuidv4()}${fileExt}`;
-                    const filePath = `payments/${quotation_id}/${fileName}`;
-                    
-                    // Upload to Supabase storage
+            let fileUploadErrors = [];
+            
+            console.log(`Processing ${req.files.length} files for upload`);
+            
+            for (let i = 0; i < req.files.length; i++) {
+                const file = req.files[i];
+                console.log(`File ${i + 1} details:`, {
+                    originalname: file.originalname,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    buffer: file.buffer ? 'Buffer exists' : 'No buffer found'
+                });
+                
+                if (!file.buffer || file.size === 0) {
+                    const errorMsg = `File ${i + 1} (${file.originalname}) has no data or empty buffer`;
+                    console.error(errorMsg);
+                    fileUploadErrors.push(errorMsg);
+                    continue;
+                }
+                
+                const fileExt = path.extname(file.originalname);
+                const fileName = `${uuidv4()}${fileExt}`;
+                const filePath = `reg_${quotation_id}/${fileName}`;
+                
+                console.log(`Uploading file: ${file.originalname} to ${filePath}`);
+                
+                try {
+                    // Upload to Supabase storage in the quotation-files bucket
                     const { data: uploadData, error: uploadError } = await supabase
                         .storage
-                        .from('client-payments')
+                        .from('quotation-files')
                         .upload(filePath, file.buffer, {
                             contentType: file.mimetype,
                             cacheControl: '3600'
                         });
                     
                     if (uploadError) {
-                        console.error('File upload error:', uploadError);
-                        throw uploadError;
+                        const errorMsg = `Error uploading file ${file.originalname}: ${uploadError.message}`;
+                        console.error(errorMsg);
+                        fileUploadErrors.push(errorMsg);
+                        continue;
                     }
                     
                     // Get public URL for the file
                     const { data: publicUrlData } = supabase
                         .storage
-                        .from('client-payments')
+                        .from('quotation-files')
                         .getPublicUrl(filePath);
+                    
+                    console.log(`File ${i + 1} uploaded successfully. Public URL:`, publicUrlData.publicUrl);
                     
                     fileUrls.push({
                         originalName: file.originalname,
@@ -984,38 +1071,367 @@ exports.submitClientPayment = async (req, res) => {
                         size: file.size,
                         type: file.mimetype
                     });
+                } catch (fileError) {
+                    const errorMsg = `Error processing file ${file.originalname}: ${fileError.message}`;
+                    console.error(errorMsg);
+                    fileUploadErrors.push(errorMsg);
                 }
-                
-                // Add file URLs to payment data
-                paymentData.files = fileUrls;
             }
             
-            // Insert the payment record into the database
+            // Check if any files were successfully uploaded
+            if (fileUrls.length === 0) {
+                console.error('Failed to upload any files:', fileUploadErrors);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to upload payment proof files. Please try again.',
+                    details: fileUploadErrors,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
+            // Add file URLs to payment data
+            paymentData.files = fileUrls;
+            console.log(`Added ${fileUrls.length} files to payment data`);
+            
+            // If there were some errors but some files succeeded, add a warning
+            let warningMessage = null;
+            if (fileUploadErrors.length > 0) {
+                warningMessage = `${fileUploadErrors.length} files failed to upload, but ${fileUrls.length} were successful.`;
+                console.warn(warningMessage);
+            }
+            
+            // Insert the payment record into the quotations table
+            console.log('Inserting payment record into quotations table');
             const { data: payment, error: paymentError } = await supabase
-                .from('client_payments')
+                .from('quotations')
                 .insert([paymentData])
                 .select()
                 .single();
 
             if (paymentError) {
-                console.error('Error saving payment:', paymentError);
-                throw paymentError;
+                console.error('Error saving payment to database:', paymentError);
+                throw new Error(`Payment save failed: ${paymentError.message}`);
             }
 
-            // Return success response with payment data
+            // Update registration status to "waiting for approval"
+            console.log('Updating registration status to "waiting for approval"');
+            const { error: updateError } = await supabase
+                .from('registration')
+                .update({ 
+                    status: 'quotation accepted',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', quotation_id);
+
+            if (updateError) {
+                console.error('Error updating registration status:', updateError);
+                // Don't throw here - we already saved the payment, just log the error
+                console.warn('Payment was saved but registration status update failed');
+            }
+
+            console.log('Payment submitted successfully:', payment.id);
+            // Return success response with payment data and any warnings
             res.status(201).json({
                 success: true,
                 data: payment,
-                message: 'Payment submitted successfully',
+                message: 'Payment submitted successfully. Registration is waiting for approval.',
+                warning: warningMessage,
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
             console.error('Error processing payment:', error);
-            res.status(400).json({
+            console.error('Error stack trace:', error.stack);
+            res.status(500).json({
                 success: false,
-                error: error.message,
+                error: `An error occurred while processing the payment: ${error.message}`,
                 timestamp: new Date().toISOString()
             });
         }
     });
+};
+
+/**
+ * Get registration and quotation data for a specific prospectus
+ * 
+ * This function:
+ * 1. Fetches registration records associated with the prospectus ID
+ * 2. Fetches related quotation payment records for each registration
+ * 3. Returns combined data with registrations and their associated payments
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.prospectusId - Prospectus ID
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with registration and payment data
+ */
+exports.getProspectusRegistrationData = async (req, res) => {
+    console.log('Executing: getProspectusRegistrationData');
+    const { regId } = req.params;
+    
+    if (!regId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Prospectus ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    try {
+        
+        // Fetch all registration records for this prospectus
+        const { data: registrations, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                bank_details:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                )
+            `)
+            .eq('id', regId)
+            .order('created_at', { ascending: false });
+            
+        if (registrationError) {
+            console.error('Error fetching registrations:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: 'Error retrieving registration data: ' + registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // If no registrations found, return an empty array
+        if (!registrations || registrations.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    prospectus,
+                    registrations,
+                    quotations
+                },
+                message: 'No registration records found for this prospectus',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Get all registration IDs to fetch associated quotations
+        // const registrationIds = registrations.map(reg => reg.id);
+        
+        // Fetch all quotation records for these registrations
+        const { data: quotations, error: quotationError } = await supabase
+            .from('quotations')
+            .select(`
+                *,
+                client:client_id(id, email)
+            `)
+            .eq('reg_id', regId)
+            .order('created_at', { ascending: false });
+            
+        if (quotationError) {
+            console.error('Error fetching quotations:', quotationError);
+            console.warn('Continuing with registration data only');
+        }
+        
+        // Organize data by adding quotations to their respective registrations
+        // const enhancedRegistrations = registrations[0];
+        // if (enhancedRegistrations) {
+        //     enhancedRegistrations.quotations = quotations || [];
+        // }
+        
+        // Return the complete data
+        res.status(200).json({
+            success: true,
+            data: {
+                registrations: registrations,
+                quotations: quotations
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getProspectusRegistrationData:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred: ' + error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get all registration and quotation data for a client
+ * 
+ * This function:
+ * 1. Fetches the client to get their array of prospectus_ids
+ * 2. For each prospectus, fetches registration and quotation data
+ * 3. Returns comprehensive data organized by prospectus
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.clientId - Client ID (UUID)
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with client's registration and payment data
+ */
+exports.getClientRegistrationHistory = async (req, res) => {
+    console.log('Executing: getClientRegistrationHistory');
+    const { clientId } = req.params;
+    
+    if (!clientId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Client ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    try {
+        // Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, email, prospectus_ids')
+            .eq('id', clientId)
+            .single();
+            
+        if (clientError) {
+            console.error('Error fetching client:', clientError);
+            return res.status(404).json({
+                success: false,
+                error: 'Error retrieving client: ' + clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    client: { id: client.id, email: client.email },
+                    prospectusData: []
+                },
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Fetch all prospectus data for this client
+        const { data: prospectusData, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select('*')
+            .in('id', client.prospectus_ids);
+            
+        if (prospectusError) {
+            console.error('Error fetching prospectus data:', prospectusError);
+            return res.status(400).json({
+                success: false,
+                error: 'Error retrieving prospectus data: ' + prospectusError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // For each prospectus, fetch registrations and quotations
+        const prospectusDetails = await Promise.all(prospectusData.map(async (prospectus) => {
+            // Fetch registrations for this prospectus with bank details
+            const { data: registrations, error: regError } = await supabase
+                .from('registration')
+                .select(`
+                    *,
+                    assigned_to_entity:assigned_to(id, name, email),
+                    registered_by_entity:registered_by(id, name, email),
+                    bank_details:bank_id(
+                        id, 
+                        account_name, 
+                        account_holder_name, 
+                        account_number, 
+                        ifsc_code, 
+                        account_type, 
+                        bank, 
+                        upi_id, 
+                        branch
+                    )
+                `)
+                .eq('prospectus_id', prospectus.id)
+                .order('created_at', { ascending: false });
+                
+            if (regError) {
+                console.error(`Error fetching registrations for prospectus ${prospectus.id}:`, regError);
+                return {
+                    prospectus,
+                    registrations: [],
+                    quotations: []
+                };
+            }
+            
+            // Get registration IDs to fetch quotations
+            const registrationIds = registrations ? registrations.map(reg => reg.id) : [];
+            
+            // Fetch quotations for this prospectus
+            const { data: quotations, error: quoteError } = await supabase
+                .from('quotations')
+                .select('*')
+                .eq('prospectus_id', prospectus.id)
+                .in('reg_id', registrationIds.length > 0 ? registrationIds : [0])  // Use [0] to ensure query works with empty array
+                .order('created_at', { ascending: false });
+                
+            if (quoteError) {
+                console.error(`Error fetching quotations for prospectus ${prospectus.id}:`, quoteError);
+                return {
+                    prospectus,
+                    registrations: registrations || [],
+                    quotations: []
+                };
+            }
+            
+            // Organize data by adding quotations to their respective registrations
+            const enhancedRegistrations = registrations ? registrations.map(registration => {
+                // Find all quotations for this registration
+                const matchingQuotations = quotations ? 
+                    quotations.filter(q => q.reg_id === registration.id) : [];
+                    
+                return {
+                    ...registration,
+                    quotations: matchingQuotations || []
+                };
+            }) : [];
+            
+            return {
+                prospectus,
+                registrations: enhancedRegistrations,
+                quotations: quotations || []
+            };
+        }));
+        
+        // Return the comprehensive data
+        res.status(200).json({
+            success: true,
+            data: {
+                client: { id: client.id, email: client.email },
+                prospectusData: prospectusDetails
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getClientRegistrationHistory:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred: ' + error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 };

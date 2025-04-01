@@ -6,17 +6,24 @@ const auth = require('../middleware/auth');
 // Public route for client login
 router.post('/login', clientController.loginClient);
 
+// === Specific routes must come before generic parameter routes ===
+// Registration and Quotation data route
+router.get('/prosReg/:regId', auth, clientController.getProspectusRegistrationData);
+router.get('/registration-history/:clientId', auth, clientController.getClientRegistrationHistory);
+
 // Protected routes requiring authentication
 router.get('/', auth, clientController.getAllClients);
-router.get('/:id', auth, clientController.getClientById);
 router.get('/email/:email', auth, clientController.getClientByEmail);
-router.post('/', auth, clientController.createClient);
-router.put('/:id', auth, clientController.updateClient);
-router.delete('/:id', auth, clientController.deleteClient);
 router.get('/:id/prospectus', clientController.getClientProspectus);
 router.get('/:id/registration/pending', clientController.getPendingClientRegistrations);
 
 // Client payment endpoint
 router.post('/payment/submit', auth, clientController.submitClientPayment);
+
+// Place generic ID route last
+router.get('/:id', auth, clientController.getClientById);
+router.post('/', auth, clientController.createClient);
+router.put('/:id', auth, clientController.updateClient);
+router.delete('/:id', auth, clientController.deleteClient);
 
 module.exports = router;
