@@ -914,6 +914,195 @@ exports.getPendingClientRegistrations = async (req, res) => {
     }
 };
 
+exports.getRegisteredClientRegistrations = async (req, res) => {
+    console.log('Executing: getPendingClientProspectus');
+    const { id } = req.params;
+
+    try {
+        // Step 1: Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('prospectus_ids')
+            .eq('id', id)
+            .single();
+
+        if (clientError) {
+            console.log('Error fetching client:', clientError);
+            return res.status(400).json({
+                success: false,
+                error: clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 3: Fetch pending prospectus data for the IDs in the array
+        // with related prospectus data and bank account details
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(*),
+                bank_accounts:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                )
+            `)
+            .in('prospectus_id', client.prospectus_ids)
+            .eq('status', 'registered');
+
+        if (registrationError) {
+            console.log('Error fetching pending registration data:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 4: Return the pending prospectus data
+        // console.log('Pending registration data:', {
+        //     success: true,
+        //     data: registrationData,
+        //     count: registrationData.length,
+        //     timestamp: new Date().toISOString()
+        // });
+        
+        res.status(200).json({
+            success: true,
+            data: registrationData,
+            count: registrationData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getPendingClientRegistration:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getClientRegistrations = async (req, res) => {
+    console.log('Executing: getPendingClientProspectus');
+    const { id } = req.params;
+
+    try {
+        // Step 1: Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('prospectus_ids')
+            .eq('id', id)
+            .single();
+
+        if (clientError) {
+            console.log('Error fetching client:', clientError);
+            return res.status(400).json({
+                success: false,
+                error: clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 3: Fetch pending prospectus data for the IDs in the array
+        // with related prospectus data and bank account details
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(*),
+                bank_accounts:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                )
+            `)
+            .in('prospectus_id', client.prospectus_ids)
+
+        if (registrationError) {
+            console.log('Error fetching pending registration data:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 4: Return the pending prospectus data
+        // console.log('Pending registration data:', {
+        //     success: true,
+        //     data: registrationData,
+        //     count: registrationData.length,
+        //     timestamp: new Date().toISOString()
+        // });
+        
+        res.status(200).json({
+            success: true,
+            data: registrationData,
+            count: registrationData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getPendingClientRegistration:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 exports.submitClientPayment = async (req, res) => {
     console.log('Executing: submitClientPayment', req.body);
     console.log('Request files before upload:', req.files); // Log files before upload to check if they exist
