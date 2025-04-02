@@ -770,7 +770,8 @@ exports.createRegistration = async (req, res) => {
         year,
         notes,
         registered_by,
-        client_id
+        client_id,
+        service_and_prices
     } = req.body;
 
     try {
@@ -818,6 +819,7 @@ exports.createRegistration = async (req, res) => {
                 registered_by,
                 client_id,
                 author_status: 'not started', // Other status are in_progress, completed, submitted, revised
+                service_and_prices,
             }])
             .select()
             .single();
