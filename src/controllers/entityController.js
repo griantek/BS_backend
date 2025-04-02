@@ -213,6 +213,20 @@ exports.createExecutive = async (req, res) => {
   }
 
   try {
+    // Check if username already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('entities')
+      .select('username')
+      .eq('username', username)
+      .single();
+    
+    if (existingUser) {
+      return res.status(409).json({ 
+        success: false,
+        error: 'Username already exists' 
+      });
+    }
+
     // Hash password before storing
     const hashedPassword = await bcrypt.hash(password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
 
