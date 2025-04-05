@@ -23,7 +23,8 @@ const {
     updateBankAccount,
     deleteBankAccount,
     approveRegistration,
-    decryptPassword
+    decryptPassword,
+    updateRegistrationInvoice
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -50,6 +51,7 @@ router.post('/registration/create', auth, createRegistration);
 router.delete('/registration/:id', auth, deleteRegistration);
 router.put('/registration/:id', auth, updateRegistration);
 router.put('/registration/approve/:id', auth, approveRegistration);
+router.put('/registration/invoice/:id', auth, updateRegistrationInvoice);
 
 // Transaction routes
 router.get('/transactions/all', auth, getAllTransactions);

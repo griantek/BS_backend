@@ -642,7 +642,7 @@ exports.getPermissionsByEntityType = async (req, res) => {
 // Registration Management
 //====================================
 
-exports.approveRegistration = async (req, res) => {
+exports.getRegistrationForApproval = async (req, res) => {
     try {
         console.log('Executing: approveRegistration');
 
@@ -814,6 +814,67 @@ exports.assignRegistration = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in assignRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Update registration status to 'pending'
+ * 
+ * This function changes only the status field of a registration record to 'pending'
+ * without modifying any other fields.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.registrationId - ID of the registration to update
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with updated registration data or error
+ */
+exports.updateRegistrationToPending = async (req, res) => {
+    try {
+        console.log('Executing: updateRegistrationToPending');
+        const { registrationId } = req.params;
+
+        // Update only the status field to 'pending'
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                status: 'pending',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registrationId)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error updating registration status:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Registration status updated to pending',
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in updateRegistrationToPending:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',

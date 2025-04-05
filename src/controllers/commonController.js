@@ -988,6 +988,75 @@ exports.updateRegistration = async (req, res) => {
     }
 };
 
+exports.updateRegistrationInvoice = async (req, res) => {
+    console.log('Executing: updateRegistrationInvoice');
+    const { id } = req.params;
+    const {
+        init_amount,
+        accept_amount,
+        discount,
+        total_amount,
+        bank_id,
+        service_and_prices
+    } = req.body;
+
+    try {
+        // Check if registration exists
+        const { data: existingRegistration, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', id)
+            .single();
+
+        if (checkError || !existingRegistration) {
+            console.log('Error finding registration:', checkError);
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update registration invoice details
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                init_amount,
+                accept_amount,
+                discount,
+                total_amount,
+                bank_id,
+                service_and_prices,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error updating registration invoice:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in updateRegistrationInvoice:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 exports.deleteRegistration = async (req, res) => {
     console.log('Executing: deleteRegistration');
     const { id } = req.params;

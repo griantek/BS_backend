@@ -12,8 +12,9 @@ const {
     getAllPermissions,
     getRoleWithPermissions,
     getPermissionsByEntityType,
-    approveRegistration,
-    assignRegistration  // Add this new import
+    getRegistrationForApproval,
+    assignRegistration ,
+    updateRegistrationToPending
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 
@@ -40,7 +41,8 @@ router.get('/permissions/all',auth,  getAllPermissions);
 router.get('/permissions/entity-type/:entity_type',auth, getPermissionsByEntityType);  // Add this new route
 
 // Registration Management routes
-router.get('/registrations/pending', auth, approveRegistration);
-router.put('/registrations/:registrationId/assign', auth, assignRegistration); // Add this new route
+router.get('/registrations/forApproval', auth, getRegistrationForApproval);
+router.put('/registrations/:registrationId/assign', auth, assignRegistration);
+router.put('/registrations/:registrationId/pending', auth, updateRegistrationToPending);
 
 module.exports = router;

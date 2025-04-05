@@ -820,7 +820,7 @@ exports.getClientProspectus = async (req, res) => {
  * @returns {object} JSON response with pending prospectus data or error
  */
 exports.getPendingClientRegistrations = async (req, res) => {
-    console.log('Executing: getPendingClientProspectus');
+    console.log('Executing: getPendingClientRegistration');
     const { id } = req.params;
 
     try {
@@ -915,7 +915,7 @@ exports.getPendingClientRegistrations = async (req, res) => {
 };
 
 exports.getRegisteredClientRegistrations = async (req, res) => {
-    console.log('Executing: getPendingClientProspectus');
+    console.log('Executing: getRegisteredClientRegistrations');
     const { id } = req.params;
 
     try {
@@ -1009,8 +1009,103 @@ exports.getRegisteredClientRegistrations = async (req, res) => {
     }
 };
 
+exports.getClientQuotationReviewRegistration = async (req, res) => {
+    console.log('Executing: getClientQuotationReviewRegistration');
+    const { id } = req.params;
+
+    try {
+        // Step 1: Fetch the client to get their prospectus_ids array
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('prospectus_ids')
+            .eq('id', id)
+            .single();
+
+        if (clientError) {
+            console.log('Error fetching client:', clientError);
+            return res.status(400).json({
+                success: false,
+                error: clientError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!client) {
+            return res.status(404).json({
+                success: false,
+                error: 'Client not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Check if client has any prospectus IDs
+        if (!client.prospectus_ids || client.prospectus_ids.length === 0) {
+            return res.status(200).json({
+                success: true,
+                data: [],
+                message: 'No prospectus records associated with this client',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 3: Fetch pending prospectus data for the IDs in the array
+        // with related prospectus data and bank account details
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(*),
+                bank_accounts:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                )
+            `)
+            .in('prospectus_id', client.prospectus_ids)
+            .eq('status', 'quotation review');
+
+        if (registrationError) {
+            console.log('Error fetching pending registration data:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 4: Return the pending prospectus data
+        // console.log('Pending registration data:', {
+        //     success: true,
+        //     data: registrationData,
+        //     count: registrationData.length,
+        //     timestamp: new Date().toISOString()
+        // });
+        
+        res.status(200).json({
+            success: true,
+            data: registrationData,
+            count: registrationData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getPendingClientRegistration:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 exports.getClientRegistrations = async (req, res) => {
-    console.log('Executing: getPendingClientProspectus');
+    console.log('Executing: getClientRegistrations');
     const { id } = req.params;
 
     try {
@@ -1105,8 +1200,6 @@ exports.getClientRegistrations = async (req, res) => {
 
 exports.submitClientPayment = async (req, res) => {
     console.log('Executing: submitClientPayment', req.body);
-    console.log('Request files before upload:', req.files); // Log files before upload to check if they exist
-    console.log('Form field names:', Object.keys(req.body));
     
     uploadPaymentFiles(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
@@ -1132,10 +1225,6 @@ exports.submitClientPayment = async (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
-        
-        // Log files after multer processing
-        console.log('Files after multer processing:', req.files);
-        console.log('Request body after file upload:', req.body);
         
         // After successful upload, process the payment data
         const { quotation_id, name, amount, notes, transaction_date, client_id } = req.body;
@@ -1198,13 +1287,10 @@ exports.submitClientPayment = async (req, res) => {
                 prospectus_id: registration.prospectus_id
             };
             
-            console.log('Processing payment with data:', paymentData);
-            
             // Upload files to Supabase storage
             let fileUrls = [];
             let fileUploadErrors = [];
             
-            console.log(`Processing ${req.files.length} files for upload`);
             
             for (let i = 0; i < req.files.length; i++) {
                 const file = req.files[i];
@@ -1225,8 +1311,6 @@ exports.submitClientPayment = async (req, res) => {
                 const fileExt = path.extname(file.originalname);
                 const fileName = `${uuidv4()}${fileExt}`;
                 const filePath = `reg_${quotation_id}/${fileName}`;
-                
-                console.log(`Uploading file: ${file.originalname} to ${filePath}`);
                 
                 try {
                     // Upload to Supabase storage in the quotation-files bucket
@@ -1250,8 +1334,6 @@ exports.submitClientPayment = async (req, res) => {
                         .storage
                         .from('quotation-files')
                         .getPublicUrl(filePath);
-                    
-                    console.log(`File ${i + 1} uploaded successfully. Public URL:`, publicUrlData.publicUrl);
                     
                     fileUrls.push({
                         originalName: file.originalname,
@@ -1280,7 +1362,6 @@ exports.submitClientPayment = async (req, res) => {
             
             // Add file URLs to payment data
             paymentData.files = fileUrls;
-            console.log(`Added ${fileUrls.length} files to payment data`);
             
             // If there were some errors but some files succeeded, add a warning
             let warningMessage = null;
@@ -1288,9 +1369,7 @@ exports.submitClientPayment = async (req, res) => {
                 warningMessage = `${fileUploadErrors.length} files failed to upload, but ${fileUrls.length} were successful.`;
                 console.warn(warningMessage);
             }
-            
-            // Insert the payment record into the quotations table
-            console.log('Inserting payment record into quotations table');
+
             const { data: payment, error: paymentError } = await supabase
                 .from('quotations')
                 .insert([paymentData])
@@ -1301,9 +1380,7 @@ exports.submitClientPayment = async (req, res) => {
                 console.error('Error saving payment to database:', paymentError);
                 throw new Error(`Payment save failed: ${paymentError.message}`);
             }
-
-            // Update registration status to "waiting for approval"
-            console.log('Updating registration status to "waiting for approval"');
+            
             const { error: updateError } = await supabase
                 .from('registration')
                 .update({ 
@@ -1317,8 +1394,7 @@ exports.submitClientPayment = async (req, res) => {
                 // Don't throw here - we already saved the payment, just log the error
                 console.warn('Payment was saved but registration status update failed');
             }
-
-            console.log('Payment submitted successfully:', payment.id);
+            
             // Return success response with payment data and any warnings
             res.status(201).json({
                 success: true,
@@ -1343,15 +1419,19 @@ exports.submitClientPayment = async (req, res) => {
  * Get registration and quotation data for a specific prospectus
  * 
  * This function:
- * 1. Fetches registration records associated with the prospectus ID
- * 2. Fetches related quotation payment records for each registration
- * 3. Returns combined data with registrations and their associated payments
+ * 1. Fetches registration records associated with the registration ID
+ * 2. Fetches related quotation payment records for the registration
+ * 3. Fetches prospectus data using prospectus_id from registration
+ * 4. Fetches leads data including requirement field using prospectus_id
+ * 5. Fetches transaction details if registration has transaction_id
+ * 6. Fetches entity details for the registered_by field
+ * 7. Returns combined data with all related information
  * 
  * @param {object} req - Express request object
  * @param {object} req.params - Request parameters
- * @param {string} req.params.prospectusId - Prospectus ID
+ * @param {string} req.params.regId - Registration ID
  * @param {object} res - Express response object
- * @returns {object} JSON response with registration and payment data
+ * @returns {object} JSON response with registration, payment, prospectus, leads, and transaction data
  */
 exports.getProspectusRegistrationData = async (req, res) => {
     console.log('Executing: getProspectusRegistrationData');
@@ -1360,14 +1440,13 @@ exports.getProspectusRegistrationData = async (req, res) => {
     if (!regId) {
         return res.status(400).json({
             success: false,
-            error: 'Prospectus ID is required',
+            error: 'Registration ID is required',
             timestamp: new Date().toISOString()
         });
     }
     
     try {
-        
-        // Fetch all registration records for this prospectus
+        // Fetch all registration records for this registration ID
         const { data: registrations, error: registrationError } = await supabase
             .from('registration')
             .select(`
@@ -1382,6 +1461,11 @@ exports.getProspectusRegistrationData = async (req, res) => {
                     bank, 
                     upi_id, 
                     branch
+                ),
+                registered_by_entity:registered_by(
+                    id,
+                    username,
+                    email
                 )
             `)
             .eq('id', regId)
@@ -1396,24 +1480,42 @@ exports.getProspectusRegistrationData = async (req, res) => {
             });
         }
         
-        // If no registrations found, return an empty array
+        // If no registrations found, return an error response
         if (!registrations || registrations.length === 0) {
-            return res.status(200).json({
-                success: true,
-                data: {
-                    prospectus,
-                    registrations,
-                    quotations
-                },
-                message: 'No registration records found for this prospectus',
+            return res.status(404).json({
+                success: false,
+                error: 'No registration records found with this ID',
                 timestamp: new Date().toISOString()
             });
         }
+
+        // Extract the prospectus_id from the registration data
+        const prospectusId = registrations[0].prospectus_id;
         
-        // Get all registration IDs to fetch associated quotations
-        // const registrationIds = registrations.map(reg => reg.id);
+        // Fetch the prospectus data
+        const { data: prospectusData, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select('*')
+            .eq('id', prospectusId)
+            .single();
+            
+        if (prospectusError) {
+            console.error('Error fetching prospectus data:', prospectusError);
+            // Continue with other data even if prospectus fetch fails
+        }
         
-        // Fetch all quotation records for these registrations
+        // Fetch leads data using prospectus_id to get leads.requirement
+        const { data: leadsData, error: leadsError } = await supabase
+            .from('leads')
+            .select('id, requirement')
+            .eq('id', prospectusData?.leads_id)
+            .single();
+            
+        if (leadsError) {
+            console.error('Error fetching leads data:', leadsError);
+        }
+        
+        // Fetch all quotation records for this registration
         const { data: quotations, error: quotationError } = await supabase
             .from('quotations')
             .select(`
@@ -1428,18 +1530,39 @@ exports.getProspectusRegistrationData = async (req, res) => {
             console.warn('Continuing with registration data only');
         }
         
-        // Organize data by adding quotations to their respective registrations
-        // const enhancedRegistrations = registrations[0];
-        // if (enhancedRegistrations) {
-        //     enhancedRegistrations.quotations = quotations || [];
-        // }
+        // Fetch transaction data if transaction_id exists in registration
+        let transactionData = null;
+        if (registrations[0] && registrations[0].transaction_id) {
+            const { data: transaction, error: transactionError } = await supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    entity:entity_id(
+                        id,
+                        username,
+                        email
+                    )
+                `)
+                .eq('id', registrations[0].transaction_id)
+                .single();
+                
+            if (transactionError) {
+                console.error('Error fetching transaction data:', transactionError);
+                // Continue with other data even if transaction fetch fails
+            } else {
+                transactionData = transaction;
+            }
+        }
         
-        // Return the complete data
+        // Return the complete data including leads and transaction information
         res.status(200).json({
             success: true,
             data: {
                 registrations: registrations,
-                quotations: quotations
+                quotations: quotations || [],
+                prospectus: prospectusData || null,
+                leads: leadsData || null,
+                transaction: transactionData || null
             },
             timestamp: new Date().toISOString()
         });
@@ -1616,6 +1739,166 @@ exports.getClientRegistrationHistory = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in getClientRegistrationHistory:', error);
+        console.error('Error stack trace:', error.stack);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred: ' + error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get combined data from registration, quotations, journal_data, and transactions tables
+ * 
+ * This function:
+ * 1. Fetches registration data by reg_id
+ * 2. Uses the prospectus_id from registration to fetch related journal_data
+ * 3. Fetches quotation data by reg_id
+ * 4. Fetches transaction data using transaction_id from registration
+ * 5. Returns combined data from all tables without client information
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.body - Request body
+ * @param {number} req.body.reg_id - Registration ID
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with combined data
+ */
+exports.getCombinedRegistrationData = async (req, res) => {
+    console.log('Executing: getCombinedRegistrationData');
+    const { reg_id } = req.body;
+
+    if (!reg_id) {
+        return res.status(400).json({
+            success: false,
+            error: 'Registration ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        // Step 1: Fetch registration data
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(*),
+                bank_details:bank_id(
+                    id, 
+                    account_name, 
+                    account_holder_name, 
+                    account_number, 
+                    ifsc_code, 
+                    account_type, 
+                    bank, 
+                    upi_id, 
+                    branch
+                ),
+                assigned_to_entity:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                registered_by_entity:registered_by(
+                    id,
+                    username,
+                    email
+                )
+            `)
+            .eq('id', reg_id)
+            .single();
+
+        if (registrationError) {
+            console.error('Error fetching registration data:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: 'Error retrieving registration data: ' + registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!registrationData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Step 2: Fetch quotation data using reg_id (without client information)
+        const { data: quotationData, error: quotationError } = await supabase
+            .from('quotations')
+            .select('id, reg_id, name, amount, notes, transaction_date, files, prospectus_id, created_at, updated_at')
+            .eq('reg_id', reg_id)
+            .order('created_at', { ascending: false });
+
+        if (quotationError) {
+            console.error('Error fetching quotation data:', quotationError);
+            // Continue with other data even if quotations fetch fails
+        }
+
+        // Step 3: Fetch journal data using prospectus_id from registration
+        const prospectusId = registrationData.prospectus_id;
+        const { data: journalData, error: journalError } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                assigned_entity:assigned_to(
+                    id,
+                    username,
+                    email
+                )
+            `)
+            .eq('prospectus_id', prospectusId)
+            .order('created_at', { ascending: false });
+
+        if (journalError) {
+            console.error('Error fetching journal data:', journalError);
+            // Continue with other data even if journal fetch fails
+        }
+
+        // Step 4: Fetch transaction data if transaction_id exists in registration
+        let transactionData = null;
+        if (registrationData.transaction_id) {
+            const { data: transaction, error: transactionError } = await supabase
+                .from('transactions')
+                .select(`
+                    *,
+                    entity:entity_id(
+                        id,
+                        username,
+                        email
+                    )
+                `)
+                .eq('id', registrationData.transaction_id)
+                .single();
+
+            if (transactionError) {
+                console.error('Error fetching transaction data:', transactionError);
+                // Continue with other data even if transaction fetch fails
+            } else {
+                transactionData = transaction;
+            }
+        }
+
+        // Remove client_id from registration data if it exists
+        if (registrationData && registrationData.client_id) {
+            delete registrationData.client_id;
+        }
+
+        // Step 5: Return combined data (without client information)
+        res.status(200).json({
+            success: true,
+            data: {
+                registration: registrationData,
+                quotations: quotationData || [],
+                journalData: journalData || [],
+                transaction: transactionData || []
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getCombinedRegistrationData:', error);
         console.error('Error stack trace:', error.stack);
         res.status(500).json({
             success: false,

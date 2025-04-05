@@ -11,12 +11,16 @@ router.post('/login', clientController.loginClient);
 router.get('/prosReg/:regId', auth, clientController.getProspectusRegistrationData);
 router.get('/registration-history/:clientId', auth, clientController.getClientRegistrationHistory);
 
+// Combined data route for registration, quotations, and journal data
+router.post('/combined-data/', auth, clientController.getCombinedRegistrationData);
+
 // Protected routes requiring authentication
 router.get('/', auth, clientController.getAllClients);
 router.get('/email/:email', auth, clientController.getClientByEmail);
 router.get('/:id/prospectus',auth, clientController.getClientProspectus);
 router.get('/:id/registration/pending',auth, clientController.getPendingClientRegistrations);
 router.get('/:id/registration/registered',auth, clientController.getRegisteredClientRegistrations);
+router.get('/:id/registration/quotationReview',auth, clientController.getClientQuotationReviewRegistration);
 router.get('/:id/registration/',auth, clientController.getClientRegistrations);
 
 // Client payment endpoint
