@@ -34,13 +34,13 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
-app.use('/api/entity', entityRoutes); // Keep original prospectus route path but use entity router
-app.use('/api/admin', adminRoutes);  // Only this route for both admin and services
-app.use('/api/common', commonRoutes);  // Changed from finance to common
-app.use('/api/editor', editorRoutes); // Add editor routes
-app.use('/api/leads', leadsRoutes); // Add leads routes
-app.use('/api/clients', clientRoutes); // Add client routes
-app.use('/api/authors', authorRoutes); // Add author routes
+app.use('/api/entity', entityRoutes); 
+app.use('/api/admin', adminRoutes);  
+app.use('/api/common', commonRoutes);  
+app.use('/api/editor', editorRoutes); 
+app.use('/api/leads', leadsRoutes); 
+app.use('/api/clients', clientRoutes); 
+app.use('/api/authors', authorRoutes); 
 
 const PORT = process.env.PORT || 5000;
 

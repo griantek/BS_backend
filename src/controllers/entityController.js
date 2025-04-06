@@ -1084,7 +1084,7 @@ exports.changePassword = async (req, res) => {
  * created by the specified user, eliminating the need for the leads table.
  */
 exports.getJournalDataByExecutive = async (req, res) => {
-  console.log('Executing: getJournalDataByLeads');
+  console.log('Executing: getJournalDataByExecutive');
   const { user_id } = req.body;
 
   if (!user_id) {

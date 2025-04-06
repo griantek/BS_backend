@@ -619,6 +619,92 @@ exports.getJournalDataByEditor = async (req, res) => {
     }
 };
 
+exports.getJournalDataByEmail = async (req, res) => {
+    console.log('Executing: getJournalDataByEmail');
+    const { email } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('personal_email', email);
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data by email:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getJournalDataByAssignedEditor = async (req, res) => {
+    console.log('Executing: getJournalDataByAssignedEditor');
+    const { editorId } = req.params;
+    
+    try {
+        // Simple validation
+        if (!editorId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Editor ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Query all journal data assigned to this editor
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('assigned_to', editorId);
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data by assigned editor:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
 // Alternative version getting data from prospectus table
 /*
 exports.createJournalDataFromProspectus = async (req, res) => {

@@ -9,7 +9,9 @@ const {
     triggerStatusUpload,
     getAssignedRegistrations,
     getProspectusAssistData,
-    getJournalDataByEditor 
+    getJournalDataByEditor,
+    getJournalDataByEmail,
+    getJournalDataByAssignedEditor
 } = require('../controllers/editorController');
 const auth = require('../middleware/auth');
 
@@ -21,7 +23,9 @@ router.post('/login', loginEditor);
 // Journal Data routes
 router.get('/journal-data/all',  getAllJournalData);
 router.get('/journal-data/:id', auth, getJournalDataById);
-router.get('/journal-data/editor/:editorId', getJournalDataByEditor); // Add this new route
+router.get('/journal-data/editor/:editorId', getJournalDataByEditor);
+router.get('/journal-data/email/:email', auth, getJournalDataByEmail);
+router.get('/journal-data/assigned/:editorId', auth, getJournalDataByAssignedEditor); // New route for assigned editor data
 router.post('/journal-data/create', auth, createJournalData);
 router.put('/journal-data/:id', auth, updateJournalData);
 router.delete('/journal-data/:id', auth, deleteJournalData);
