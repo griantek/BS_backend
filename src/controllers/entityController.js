@@ -219,11 +219,11 @@ exports.createExecutive = async (req, res) => {
       .select('username')
       .eq('username', username)
       .single();
-    
+
     if (existingUser) {
-      return res.status(409).json({ 
+      return res.status(409).json({
         success: false,
-        error: 'Username already exists' 
+        error: 'Username already exists'
       });
     }
 
@@ -251,7 +251,7 @@ exports.createExecutive = async (req, res) => {
 
 exports.getAllEntites = async (req, res) => {
   console.log('Executing: getAllEntites');
-  
+
   try {
     const { data: executives, error: execError } = await supabase
       .from('entities')  // Changed from 'executive'
@@ -336,7 +336,7 @@ exports.createProspectus = async (req, res) => {
         requirement,
         proposed_service_period: period,
         services: proposedService,
-        notes:notes,
+        notes: notes,
         next_follow_up: nextFollowUp
       }])
       .select();
@@ -367,7 +367,7 @@ exports.createProspectus = async (req, res) => {
 
 exports.getProspectus = async (req, res) => {
   console.log('Executing: getProspectus');
-  
+
   try {
     const { data, error } = await supabase
       .from('prospectus')
@@ -406,9 +406,9 @@ exports.getProspectus = async (req, res) => {
 };
 
 exports.getProspectusByExecutiveId = async (req, res) => {
-  try{
-  console.log('Executing: getProspectusByExecutiveId');
-  const { executiveId } = req.params;
+  try {
+    console.log('Executing: getProspectusByExecutiveId');
+    const { executiveId } = req.params;
     const { data, error } = await supabase
       .from('prospectus')
       .select('*')
@@ -549,14 +549,14 @@ exports.updateProspectus = async (req, res) => {
         date,
         email: clientEmail,
         client_name: clientName,
-        phone:phone,
+        phone: phone,
         department: otherDepartment || department,
-        state:state,
+        state: state,
         tech_person: techPerson,
-        requirement:requirement,
+        requirement: requirement,
         proposed_service_period: period,
         services: proposedService,
-        notes:notes,
+        notes: notes,
         next_follow_up: nextFollowUp,
         updated_at: new Date().toISOString()
       })
@@ -613,7 +613,7 @@ exports.updateExecutive = async (req, res) => {
     // If password is provided, hash it
     if (password) {
       updateData.password = await bcrypt.hash(
-        password, 
+        password,
         parseInt(process.env.BCRYPT_SALT_ROUNDS)
       );
     }
@@ -660,7 +660,7 @@ exports.updateExecutive = async (req, res) => {
 
 exports.getAllEditors = async (req, res) => {
   console.log('Executing: getAllEditors');
-  
+
   try {
     const { data: editors, error } = await supabase
       .from('entities')
@@ -703,7 +703,7 @@ exports.getAllEditors = async (req, res) => {
 
 exports.getAllAuthors = async (req, res) => {
   console.log('Executing: getAllAuthors');
-  
+
   try {
     const { data: auhtors, error } = await supabase
       .from('entities')
@@ -746,7 +746,7 @@ exports.getAllAuthors = async (req, res) => {
 
 exports.getAllExecutives = async (req, res) => {
   console.log('Executing: getAllExecutives');
-  
+
   try {
     const { data: execs, error } = await supabase
       .from('entities')
@@ -789,7 +789,7 @@ exports.getAllExecutives = async (req, res) => {
 
 exports.getAllEditorsAndAuthors = async (req, res) => {
   console.log('Executing: getAllEditorsAndAuthors');
-  
+
   try {
     const { data: entities, error } = await supabase
       .from('entities')
@@ -881,7 +881,7 @@ exports.verifyPassword = async (req, res) => {
       message: 'Password verification successful',
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('Error verifying password:', error);
     res.status(500).json({
@@ -1125,40 +1125,56 @@ exports.getJournalDataByExecutive = async (req, res) => {
     // Extract prospectus IDs
     const prospectusIds = prospectusRecords.map(p => p.id);
 
-    // Then get journal data for these prospectus IDs
-    const { data: journalData, error: journalError } = await supabase
-      .from('journal_data')
-      .select(`
-        *,
-        prospectus:prospectus_id(
-          id,
-          reg_id,
-          client_name,
-          email,
-          phone,
-          requirement,
-          entity_id
-        ),
-        entities:assigned_to(
-          id,
-          username,
-          email
-        )
-      `)
-      .in('prospectus_id', prospectusIds)
-      .order('created_at', { ascending: false });
+    // Initialize array to hold all journal data
+    let allJournalData = [];
 
-    if (journalError) {
-      console.error('Error fetching journal data:', journalError);
-      return res.status(400).json({
-        success: false,
-        error: journalError.message,
-        timestamp: new Date().toISOString()
-      });
+    // Set batch size to avoid URI too large error
+    const BATCH_SIZE = 20;
+
+    // Process in batches
+    for (let i = 0; i < prospectusIds.length; i += BATCH_SIZE) {
+      const batchIds = prospectusIds.slice(i, i + BATCH_SIZE);
+
+      // Query journal data for this batch
+      const { data: batchJournalData, error: journalError } = await supabase
+        .from('journal_data')
+        .select(`
+          *,
+          prospectus:prospectus_id(
+            id,
+            reg_id,
+            client_name,
+            email,
+            phone,
+            requirement,
+            entity_id
+          ),
+          entities:assigned_to(
+            id,
+            username,
+            email
+          )
+        `)
+        .in('prospectus_id', batchIds)
+        .order('created_at', { ascending: false });
+
+      if (journalError) {
+        console.error('Error fetching journal data batch:', journalError);
+        return res.status(400).json({
+          success: false,
+          error: journalError.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Add batch results to the complete result set
+      if (batchJournalData && batchJournalData.length > 0) {
+        allJournalData = [...allJournalData, ...batchJournalData];
+      }
     }
 
     // Process journals if needed
-    const processedJournals = journalData.map(journal => {
+    const processedJournals = allJournalData.map(journal => {
       // If there are any decryption or transformation needs, handle here
       return {
         ...journal,
