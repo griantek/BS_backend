@@ -1081,7 +1081,7 @@ exports.changePassword = async (req, res) => {
  * Get journal data connected to prospectus created by a specific user
  * 
  * This function directly queries journal data associated with prospectus records
- * created by the specified user, eliminating the need for the leads table.
+ * created by the specified user, and also fetches all public journal data (is_private = FALSE).
  */
 exports.getJournalDataByExecutive = async (req, res) => {
   console.log('Executing: getJournalDataByExecutive');
@@ -1111,66 +1111,105 @@ exports.getJournalDataByExecutive = async (req, res) => {
       });
     }
 
-    // If no prospectus found, return empty array
-    if (!prospectusRecords || prospectusRecords.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: [],
-        count: 0,
-        message: 'No prospectus records found for this user',
+    // Initialize array to hold all journal data
+    let allJournalData = [];
+
+    // If user has prospectus records, fetch related journal data
+    if (prospectusRecords && prospectusRecords.length > 0) {
+      // Extract prospectus IDs
+      const prospectusIds = prospectusRecords.map(p => p.id);
+      
+      // Set batch size to avoid URI too large error
+      const BATCH_SIZE = 20;
+      
+      // Process in batches
+      for (let i = 0; i < prospectusIds.length; i += BATCH_SIZE) {
+        const batchIds = prospectusIds.slice(i, i + BATCH_SIZE);
+        
+        // Query journal data for this batch
+        const { data: batchJournalData, error: journalError } = await supabase
+          .from('journal_data')
+          .select(`
+            *,
+            prospectus:prospectus_id(
+              id,
+              reg_id,
+              client_name,
+              email,
+              phone,
+              requirement,
+              entity_id
+            ),
+            entities:assigned_to(
+              id,
+              username,
+              email
+            )
+          `)
+          .in('prospectus_id', batchIds)
+          .order('created_at', { ascending: false });
+
+        if (journalError) {
+          console.error('Error fetching journal data batch:', journalError);
+          return res.status(400).json({
+            success: false,
+            error: journalError.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        // Add batch results to the complete result set
+        if (batchJournalData && batchJournalData.length > 0) {
+          allJournalData = [...allJournalData, ...batchJournalData];
+        }
+      }
+    }
+
+    // Now fetch all public journal data (is_private = FALSE)
+    const { data: publicJournalData, error: publicError } = await supabase
+      .from('journal_data')
+      .select(`
+        *,
+        prospectus:prospectus_id(
+          id,
+          reg_id,
+          client_name,
+          email,
+          phone,
+          requirement,
+          entity_id
+        ),
+        entities:assigned_to(
+          id,
+          username,
+          email
+        )
+      `)
+      .eq('is_private', false)
+      .order('created_at', { ascending: false });
+
+    if (publicError) {
+      console.error('Error fetching public journal data:', publicError);
+      return res.status(400).json({
+        success: false,
+        error: publicError.message,
         timestamp: new Date().toISOString()
       });
     }
 
-    // Extract prospectus IDs
-    const prospectusIds = prospectusRecords.map(p => p.id);
-
-    // Initialize array to hold all journal data
-    let allJournalData = [];
-
-    // Set batch size to avoid URI too large error
-    const BATCH_SIZE = 20;
-
-    // Process in batches
-    for (let i = 0; i < prospectusIds.length; i += BATCH_SIZE) {
-      const batchIds = prospectusIds.slice(i, i + BATCH_SIZE);
-
-      // Query journal data for this batch
-      const { data: batchJournalData, error: journalError } = await supabase
-        .from('journal_data')
-        .select(`
-          *,
-          prospectus:prospectus_id(
-            id,
-            reg_id,
-            client_name,
-            email,
-            phone,
-            requirement,
-            entity_id
-          ),
-          entities:assigned_to(
-            id,
-            username,
-            email
-          )
-        `)
-        .in('prospectus_id', batchIds)
-        .order('created_at', { ascending: false });
-
-      if (journalError) {
-        console.error('Error fetching journal data batch:', journalError);
-        return res.status(400).json({
-          success: false,
-          error: journalError.message,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Add batch results to the complete result set
-      if (batchJournalData && batchJournalData.length > 0) {
-        allJournalData = [...allJournalData, ...batchJournalData];
-      }
+    // Add public data to the results if any exist
+    if (publicJournalData && publicJournalData.length > 0) {
+      // Combine both sets and remove duplicates
+      const combinedData = [...allJournalData];
+      
+      publicJournalData.forEach(publicItem => {
+        // Check if this item already exists in our data
+        if (!combinedData.some(item => item.id === publicItem.id)) {
+          combinedData.push(publicItem);
+        }
+      });
+      
+      allJournalData = combinedData;
     }
 
     // Process journals if needed
@@ -1184,6 +1223,11 @@ exports.getJournalDataByExecutive = async (req, res) => {
       };
     });
 
+    // Sort the final combined data by created_at
+    processedJournals.sort((a, b) => 
+      new Date(b.created_at) - new Date(a.created_at)
+    );
+
     res.status(200).json({
       success: true,
       data: processedJournals,
@@ -1191,7 +1235,7 @@ exports.getJournalDataByExecutive = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in getJournalDataByLeads:', error);
+    console.error('Error in getJournalDataByExecutive:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',
