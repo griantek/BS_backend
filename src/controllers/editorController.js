@@ -35,6 +35,7 @@ exports.loginEditor = async (req, res) => {
       `)
       .eq('username', username)
       .eq('entity_type', 'Editor')
+      .eq('is_deleted', false)  // Only select non-deleted entities
       .single();
 
     if (error || !editor) {
@@ -111,6 +112,7 @@ exports.getAllJournalData = async (req, res) => {
                     reg_id
                 )
             `)
+            .eq('entities.is_deleted', false) // Only include non-deleted entities
             .order('id', { ascending: true });
 
         if (error) throw error;
@@ -150,6 +152,7 @@ exports.getJournalDataById = async (req, res) => {
                 )
             `)
             .eq('id', id)
+            .eq('entities.is_deleted', false) // Only include non-deleted entities
             .single();
 
         if (error) throw error;
@@ -705,49 +708,53 @@ exports.getJournalDataByAssignedEditor = async (req, res) => {
     }
 };
 
-// Alternative version getting data from prospectus table
-/*
-exports.createJournalDataFromProspectus = async (req, res) => {
-    console.log('Executing: createJournalDataFromProspectus');
-    const { prospectus_id, journal_name, status, journal_link, ...otherFields } = req.body;
+/**
+ * Update just the status field of journal data
+ * This is a specialized endpoint for quick status updates
+ */
+exports.updateJournalStatus = async (req, res) => {
+    console.log('Executing: updateJournalStatus');
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate input
+    if (!status) {
+        return res.status(400).json({
+            success: false,
+            error: 'Status is required',
+            timestamp: new Date().toISOString()
+        });
+    }
 
     try {
-        // First get prospectus data
-        const { data: prospectus, error: prospectusError } = await supabase
-            .from('prospectus')
-            .select('client_name, requirement, email, executive_id')
-            .eq('id', prospectus_id)
-            .single();
-
-        if (prospectusError) throw prospectusError;
-        if (!prospectus) throw new Error('Prospectus not found');
-
-        // Create journal data with prospectus information
+        // Update only the status field and updated_at timestamp
         const { data, error } = await supabase
             .from('journal_data')
-            .insert([{
-                prospectus_id,
-                client_name: prospectus.client_name,
-                requirement: prospectus.requirement,
-                personal_email: prospectus.email,
-                assigned_to: prospectus.executive_id,
-                journal_name,
+            .update({
                 status,
-                journal_link,
-                ...otherFields
-            }])
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
+        
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found',
+                timestamp: new Date().toISOString()
+            });
+        }
 
-        res.status(201).json({
+        res.status(200).json({
             success: true,
-            data,
+            message: 'Journal status updated successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error creating journal data:', error);
+        console.error('Error updating journal status:', error);
         res.status(400).json({
             success: false,
             error: error.message,
@@ -755,6 +762,5 @@ exports.createJournalDataFromProspectus = async (req, res) => {
         });
     }
 };
-*/
 
 // Add other editor-specific functions here...

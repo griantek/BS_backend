@@ -30,6 +30,7 @@ exports.loginExecutive = async (req, res) => {
         )
       `)
       .eq('username', username)
+      .eq('is_deleted', false) // Only select non-deleted entities
       .single();
 
     if (execError) {
@@ -127,6 +128,7 @@ exports.loginLeads = async (req, res) => {
       `)
       .eq('username', username)
       .eq('role_details.entity_type', 'Leads')
+      .eq('is_deleted', false) // Only select non-deleted entities
       .single();
 
     if (leadError || !lead) {
@@ -265,6 +267,7 @@ exports.getAllEntites = async (req, res) => {
           entity_type
         )
       `)
+      .eq('is_deleted', false) // Only select non-deleted entities
       .order('created_at', { ascending: false });
 
     if (execError) {
@@ -675,6 +678,7 @@ exports.getAllEditors = async (req, res) => {
         )
       `)
       .eq('role_details.entity_type', 'Editor')
+      .eq('is_deleted', false) // Only select non-deleted entities
       .order('username', { ascending: true });
 
     if (error) {
@@ -718,6 +722,7 @@ exports.getAllAuthors = async (req, res) => {
         )
       `)
       .eq('role_details.entity_type', 'Author')
+      .eq('is_deleted', false) // Only select non-deleted entities
       .order('username', { ascending: true });
 
     if (error) {
@@ -761,6 +766,7 @@ exports.getAllExecutives = async (req, res) => {
         )
       `)
       .eq('role_details.entity_type', 'Executive')
+      .eq('is_deleted', false) // Only select non-deleted entities
       .order('username', { ascending: true });
 
     if (error) {
@@ -804,6 +810,7 @@ exports.getAllEditorsAndAuthors = async (req, res) => {
         )
       `)
       .in('role_details.entity_type', ['Editor', 'Author'])
+      .eq('is_deleted', false) // Only select non-deleted entities
       .order('username', { ascending: true });
 
     if (error) {
@@ -853,6 +860,7 @@ exports.verifyPassword = async (req, res) => {
       .from('entities')
       .select('password')
       .eq('id', entityId)
+      .eq('is_deleted', false) // Only select non-deleted entities
       .single();
 
     if (error || !entity) {
@@ -918,6 +926,7 @@ exports.updateUserProfile = async (req, res) => {
       .from('entities')
       .select('id, is_protected')
       .eq('id', id)
+      .eq('is_deleted', false) // Only select non-deleted entities
       .single();
 
     if (checkError || !existingEntity) {
@@ -1022,6 +1031,7 @@ exports.changePassword = async (req, res) => {
       .from('entities')
       .select('id, is_protected')
       .eq('id', id)
+      .eq('is_deleted', false) // Only select non-deleted entities
       .single();
 
     if (checkError || !existingEntity) {
@@ -1236,6 +1246,89 @@ exports.getJournalDataByExecutive = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in getJournalDataByExecutive:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Soft delete an entity by setting is_deleted flag to true
+ * 
+ * This function marks an entity as deleted without actually removing it from the database,
+ * making it unavailable for all functions that respect the is_deleted flag.
+ * Protected entities (is_protected = true) cannot be deleted.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.id - Entity ID to delete
+ * @param {object} res - Express response object
+ * @returns {object} JSON response indicating success or failure
+ */
+exports.deleteEntity = async (req, res) => {
+  console.log('Executing: deleteEntity');
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Entity ID is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // First check if the entity exists and if it is protected
+    const { data: existingEntity, error: checkError } = await supabase
+      .from('entities')
+      .select('id, is_protected, username')
+      .eq('id', id)
+      .single();
+
+    if (checkError || !existingEntity) {
+      return res.status(404).json({
+        success: false,
+        error: 'Entity not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if entity is protected
+    if (existingEntity.is_protected) {
+      return res.status(403).json({
+        success: false,
+        error: 'This entity is protected and cannot be deleted',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Soft delete by setting is_deleted flag to true
+    const { data, error } = await supabase
+      .from('entities')
+      .update({
+        is_deleted: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error soft deleting entity:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Entity '${existingEntity.username}' has been soft deleted`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in deleteEntity:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',

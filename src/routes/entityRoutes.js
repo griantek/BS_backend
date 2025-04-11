@@ -11,15 +11,15 @@ const {
     updateProspectus,
     getAllEditors,
     updateExecutive,
-    loginLeads, // Add this import
+    loginLeads,
     getAllEntites,
     getAllAuthors,
-    getAllEditorsAndAuthors, // Add this new import
+    getAllEditorsAndAuthors,
     updateUserProfile,
-    verifyPassword, // Add this new import
-    changePassword, // Add this new import
-    getJournalDataByLeads, // Add this new import
-    getJournalDataByExecutive
+    verifyPassword,
+    changePassword,
+    getJournalDataByExecutive,
+    deleteEntity
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -31,14 +31,14 @@ router.post('/login', loginExecutive);
 router.put('/:id', auth, updateExecutive);
 
 // Leads login route
-router.post('/leads/login', loginLeads); // Add this new route
+router.post('/leads/login', loginLeads);
 
 // Prospectus routes (now handled by executive)
 router.post('/prospectus/create', auth, createProspectus);
 router.get('/prospectus/all', auth, getProspectus);
 router.get('/prospectus/:executiveId', auth, getProspectusByExecutiveId);
 router.get('/prospectus/register/:regId', auth, getProspectusByRegId);
-router.put('/prospectus/:id', auth, updateProspectus); // Add this new route
+router.put('/prospectus/:id', auth, updateProspectus);
 
 // Update the registration route to support pagination query parameters
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
@@ -48,7 +48,7 @@ router.get('/all', auth, getAllEntites);
 router.get('/editors/all', getAllEditors);
 router.get('/author/all', getAllAuthors);
 router.get('/exec/all', getAllExecutives);
-router.get('/editors-authors/all',  getAllEditorsAndAuthors); // New combined route
+router.get('/editors-authors/all',  getAllEditorsAndAuthors);
 
 // Add new routes for profile management
 router.post('/verify-password', auth, verifyPassword);
@@ -57,5 +57,8 @@ router.put('/:id/change-password', auth, changePassword);
 
 // Add this route for getting journal data from leads
 router.post('/journal-data-by-executive',  getJournalDataByExecutive);
+
+// Add the new route for entity deletion
+router.delete('/:id', auth, deleteEntity);
 
 module.exports = router;
