@@ -112,7 +112,8 @@ exports.getAllJournalData = async (req, res) => {
                     reg_id
                 )
             `)
-            .eq('entities.is_deleted', false) // Only include non-deleted entities
+            .eq('is_deleted', false)
+            .eq('entities.is_deleted', false)
             .order('id', { ascending: true });
 
         if (error) throw error;
@@ -152,7 +153,8 @@ exports.getJournalDataById = async (req, res) => {
                 )
             `)
             .eq('id', id)
-            .eq('entities.is_deleted', false) // Only include non-deleted entities
+            .eq('is_deleted', false)
+            .eq('entities.is_deleted', false)
             .single();
 
         if (error) throw error;
@@ -285,6 +287,22 @@ exports.updateJournalData = async (req, res) => {
     const updateData = { ...req.body };
 
     try {
+        // Check if the record is soft-deleted before updating
+        const { data: existingJournal, error: checkError } = await supabase
+            .from('journal_data')
+            .select('id')
+            .eq('id', id)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingJournal) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
         // Encrypt sensitive fields if they exist in the update data
         if (updateData.username) {
             updateData.username = encryptText(updateData.username);
@@ -343,16 +361,20 @@ exports.deleteJournalData = async (req, res) => {
     const { id } = req.params;
 
     try {
+        // Soft delete by setting is_deleted flag to true
         const { error } = await supabase
             .from('journal_data')
-            .delete()
+            .update({
+                is_deleted: true,
+                deleted_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (error) throw error;
 
         res.status(200).json({
             success: true,
-            message: 'Journal data deleted successfully',
+            message: 'Journal data soft-deleted successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -460,7 +482,8 @@ exports.getAssignedRegistrations = async (req, res) => {
             `)
             .eq('assigned_to', executive_id)
             .eq('status', 'registered')
-            .eq('journal_added', false);
+            .eq('journal_added', false)
+            .eq('is_deleted', false);
             
         if (registrationError) throw registrationError;
         
@@ -572,7 +595,8 @@ exports.getJournalDataByEditor = async (req, res) => {
                     reg_id
                 )
             `, { count: 'exact' })
-            .eq('assigned_to', editorId);
+            .eq('assigned_to', editorId)
+            .eq('is_deleted', false);
 
         // Apply status filter if provided
         if (status) {
@@ -641,7 +665,8 @@ exports.getJournalDataByEmail = async (req, res) => {
                     reg_id
                 )
             `)
-            .eq('personal_email', email);
+            .eq('personal_email', email)
+            .eq('is_deleted', false);
 
         if (error) throw error;
 
@@ -689,7 +714,8 @@ exports.getJournalDataByAssignedEditor = async (req, res) => {
                     reg_id
                 )
             `)
-            .eq('assigned_to', editorId);
+            .eq('assigned_to', editorId)
+            .eq('is_deleted', false);
 
         if (error) throw error;
 

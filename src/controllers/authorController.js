@@ -53,7 +53,8 @@ exports.getAssignedRegistrations = async (req, res) => {
             `)
             .eq('assigned_to', executive_id)
             .eq('status', 'registered')
-            .eq('journal_added', false);
+            .eq('journal_added', false)
+            .eq('is_deleted', false);
             
         if (registrationError) throw registrationError;
         
@@ -85,7 +86,7 @@ exports.getAssignedRegistrations = async (req, res) => {
 exports.updateAuthorStatus = async (req, res) => {
     console.log('Executing: updateAuthorStatus');
     const { regId } = req.params;
-    const { status,comments } = req.body;
+    const { status, comments } = req.body;
     
     if (!status) {
         return res.status(400).json({
@@ -96,10 +97,27 @@ exports.updateAuthorStatus = async (req, res) => {
     }
 
     try {
+        // Check if the registration exists and is not deleted
+        const { data: registration, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('prospectus_id', regId)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !registration) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
         const { data, error } = await supabase
             .from('registration')
             .update({ author_status: status, updated_at: new Date() })
             .eq('prospectus_id', regId)
+            .eq('is_deleted', false)
             .select();
 
         if (error) throw error;

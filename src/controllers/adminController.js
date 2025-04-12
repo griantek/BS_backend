@@ -661,6 +661,7 @@ exports.getRegistrationForApproval = async (req, res) => {
                 transaction_details:transaction_id(*)
             `)
             .eq('admin_assigned', false)
+            .eq('is_deleted', false)  // Add filter for is_deleted = false
             .order('created_at', { ascending: false });
 
         if (regError) {
@@ -776,6 +777,22 @@ exports.assignRegistration = async (req, res) => {
             });
         }
 
+        // Check if the registration exists and is not deleted
+        const { data: existingReg, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', registrationId)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingReg) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
         // Update the registration record
         const { data, error } = await supabase
             .from('registration')
@@ -838,6 +855,22 @@ exports.updateRegistrationToPending = async (req, res) => {
     try {
         console.log('Executing: updateRegistrationToPending');
         const { registrationId } = req.params;
+
+        // Check if the registration exists and is not deleted
+        const { data: existingReg, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', registrationId)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingReg) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
 
         // Update only the status field to 'pending'
         const { data, error } = await supabase

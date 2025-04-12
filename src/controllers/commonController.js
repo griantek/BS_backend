@@ -640,6 +640,7 @@ exports.getAllRegistrations = async (req, res) => {
                     entity_id
                 )
             `)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
         if (registrationError) {
@@ -676,7 +677,7 @@ exports.getAllRegistrations = async (req, res) => {
                 // Related data
                 prospectus: reg.prospectus,
                 bank_account: reg.bank_accounts,
-                assigned_executive:reg.assigned_executive,
+                assigned_executive: reg.assigned_executive,
                 transaction: reg.transactions
             }))
         };
@@ -710,6 +711,7 @@ exports.getRegistrationById = async (req, res) => {
             transactions(*)
             `)
             .eq('id', id)
+            .eq('is_deleted', false)
             .single();
 
         if (error) {
@@ -871,7 +873,7 @@ exports.createRegistration = async (req, res) => {
 };
 
 exports.updateRegistration = async (req, res) => {
-    console.log('Executing: updateRegistration');
+    console.log('Executing: updateRegistration',req.body);
     const { id } = req.params;
 
     try {
@@ -880,13 +882,14 @@ exports.updateRegistration = async (req, res) => {
             .from('registration')
             .select('transaction_id')
             .eq('id', id)
+            .eq('is_deleted', false)
             .single();
 
         if (fetchError || !currentRegistration) {
             console.log('Error fetching registration:', fetchError);
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found',
+                error: 'Registration not found or has been deleted',
                 timestamp: new Date().toISOString()
             });
         }
@@ -1067,50 +1070,29 @@ exports.deleteRegistration = async (req, res) => {
             .from('registration')
             .select('transaction_id, prospectus_id')
             .eq('id', id)
+            .eq('is_deleted', false)
             .single();
 
-        if (fetchError) {
+        if (fetchError || !registration) {
             console.log('Error fetching registration:', fetchError);
-            return res.status(400).json({
-                success: false,
-                error: 'Error fetching registration details',
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found',
+                error: 'Registration not found or has been deleted',
                 timestamp: new Date().toISOString()
             });
         }
 
-        // Delete the transaction first
-        if (registration.transaction_id) {
-            const { error: transactionError } = await supabase
-                .from('transactions')
-                .delete()
-                .eq('id', registration.transaction_id);
-
-            if (transactionError) {
-                console.log('Error deleting transaction:', transactionError);
-                return res.status(400).json({
-                    success: false,
-                    error: 'Error deleting associated transaction',
-                    timestamp: new Date().toISOString()
-                });
-            }
-        }
-
-        // Then delete the registration
+        // Soft delete instead of hard delete
         const { error: registrationError } = await supabase
             .from('registration')
-            .delete()
+            .update({
+                is_deleted: true,
+                deleted_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (registrationError) {
-            console.log('Error deleting registration:', registrationError);
+            console.log('Error soft-deleting registration:', registrationError);
             return res.status(400).json({
                 success: false,
                 error: registrationError.message,
@@ -1118,22 +1100,9 @@ exports.deleteRegistration = async (req, res) => {
             });
         }
 
-        // Reset the prospectus isregistered status
-        if (registration.prospectus_id) {
-            const { error: prospectusError } = await supabase
-                .from('prospectus')
-                .update({ isregistered: false })
-                .eq('id', registration.prospectus_id);
-
-            if (prospectusError) {
-                console.log('Error updating prospectus:', prospectusError);
-                // Don't fail the request if this update fails
-            }
-        }
-
         res.status(200).json({
             success: true,
-            message: 'Registration and associated transaction deleted successfully',
+            message: 'Registration soft-deleted successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {

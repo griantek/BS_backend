@@ -91,7 +91,8 @@ exports.loginClient = async (req, res) => {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', data.prospectus_ids);
+                .in('id', data.prospectus_ids)
+                .eq('is_deleted', false);
                 
             if (!prospectusError) {
                 prospectusData = prospectusResult;
@@ -155,7 +156,8 @@ exports.getAllClients = async (req, res) => {
             const { data: prospectusData, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', Array.from(allProspectusIds));
+                .in('id', Array.from(allProspectusIds))
+                .eq('is_deleted', false);
 
             if (!prospectusError && prospectusData) {
                 // Create a map for easy lookup
@@ -227,7 +229,8 @@ exports.getClientById = async (req, res) => {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', data.prospectus_ids);
+                .in('id', data.prospectus_ids)
+                .eq('is_deleted', false);
                 
             if (!prospectusError) {
                 prospectusData = prospectusResult;
@@ -296,7 +299,8 @@ exports.getClientByEmail = async (req, res) => {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', data.prospectus_ids);
+                .in('id', data.prospectus_ids)
+                .eq('is_deleted', false);
                 
             if (!prospectusError) {
                 prospectusData = prospectusResult;
@@ -361,6 +365,7 @@ exports.createClient = async (req, res) => {
                 .from('prospectus')
                 .select('id')
                 .eq('id', prospectus_id)
+                .eq('is_deleted', false)
                 .single();
 
             if (prospectusError) {
@@ -439,7 +444,8 @@ exports.createClient = async (req, res) => {
                     const { data: prospectusResult, error: prospectusError } = await supabase
                         .from('prospectus')
                         .select('id, client_name, email')
-                        .in('id', combinedIds);
+                        .in('id', combinedIds)
+                        .eq('is_deleted', false);
                         
                     if (!prospectusError) {
                         prospectusData = prospectusResult;
@@ -468,7 +474,8 @@ exports.createClient = async (req, res) => {
                 const { data: prospectusResult, error: prospectusError } = await supabase
                     .from('prospectus')
                     .select('id, client_name, email')
-                    .in('id', existingClient.prospectus_ids);
+                    .in('id', existingClient.prospectus_ids)
+                    .eq('is_deleted', false);
                     
                 if (!prospectusError) {
                     prospectusData = prospectusResult;
@@ -522,7 +529,8 @@ exports.createClient = async (req, res) => {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', prospectusIdsArray);
+                .in('id', prospectusIdsArray)
+                .eq('is_deleted', false);
                 
             if (!prospectusError) {
                 prospectusData = prospectusResult;
@@ -584,7 +592,8 @@ exports.updateClient = async (req, res) => {
                 const { data: prospectusData, error: prospectusError } = await supabase
                     .from('prospectus')
                     .select('id')
-                    .in('id', prospectusIdsArray);
+                    .in('id', prospectusIdsArray)
+                    .eq('is_deleted', false);
 
                 if (prospectusError) {
                     return res.status(400).json({
@@ -658,7 +667,8 @@ exports.updateClient = async (req, res) => {
             const { data: prospectusResult, error: prospectusError } = await supabase
                 .from('prospectus')
                 .select('id, client_name, phone, email')
-                .in('id', data.prospectus_ids);
+                .in('id', data.prospectus_ids)
+                .eq('is_deleted', false);
                 
             if (!prospectusError) {
                 prospectusData = prospectusResult;
@@ -777,7 +787,8 @@ exports.getClientProspectus = async (req, res) => {
             .select(`
                 *
             `)
-            .in('id', client.prospectus_ids);
+            .in('id', client.prospectus_ids)
+            .eq('is_deleted', false);
 
         if (prospectusError) {
             console.log('Error fetching prospectus data:', prospectusError);
@@ -878,7 +889,8 @@ exports.getPendingClientRegistrations = async (req, res) => {
                 )
             `)
             .in('prospectus_id', client.prospectus_ids)
-            .eq('status', 'pending');
+            .eq('status', 'pending')
+            .eq('is_deleted', false);
 
         if (registrationError) {
             console.log('Error fetching pending registration data:', registrationError);
@@ -890,13 +902,6 @@ exports.getPendingClientRegistrations = async (req, res) => {
         }
 
         // Step 4: Return the pending prospectus data
-        // console.log('Pending registration data:', {
-        //     success: true,
-        //     data: registrationData,
-        //     count: registrationData.length,
-        //     timestamp: new Date().toISOString()
-        // });
-        
         res.status(200).json({
             success: true,
             data: registrationData,
@@ -953,8 +958,7 @@ exports.getRegisteredClientRegistrations = async (req, res) => {
             });
         }
 
-        // Step 3: Fetch pending prospectus data for the IDs in the array
-        // with related prospectus data and bank account details
+        // Step 3: Fetch registrations data for the IDs in the array
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
             .select(`
@@ -973,7 +977,8 @@ exports.getRegisteredClientRegistrations = async (req, res) => {
                 )
             `)
             .in('prospectus_id', client.prospectus_ids)
-            .eq('status', 'registered');
+            .eq('status', 'registered')
+            .eq('is_deleted', false);
 
         if (registrationError) {
             console.log('Error fetching pending registration data:', registrationError);
@@ -985,13 +990,6 @@ exports.getRegisteredClientRegistrations = async (req, res) => {
         }
 
         // Step 4: Return the pending prospectus data
-        // console.log('Pending registration data:', {
-        //     success: true,
-        //     data: registrationData,
-        //     count: registrationData.length,
-        //     timestamp: new Date().toISOString()
-        // });
-        
         res.status(200).json({
             success: true,
             data: registrationData,
@@ -1048,8 +1046,7 @@ exports.getClientQuotationReviewRegistration = async (req, res) => {
             });
         }
 
-        // Step 3: Fetch pending prospectus data for the IDs in the array
-        // with related prospectus data and bank account details
+        // Step 3: Fetch quotation review data for the IDs in the array
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
             .select(`
@@ -1068,7 +1065,8 @@ exports.getClientQuotationReviewRegistration = async (req, res) => {
                 )
             `)
             .in('prospectus_id', client.prospectus_ids)
-            .eq('status', 'quotation review');
+            .eq('status', 'quotation review')
+            .eq('is_deleted', false);
 
         if (registrationError) {
             console.log('Error fetching pending registration data:', registrationError);
@@ -1080,13 +1078,6 @@ exports.getClientQuotationReviewRegistration = async (req, res) => {
         }
 
         // Step 4: Return the pending prospectus data
-        // console.log('Pending registration data:', {
-        //     success: true,
-        //     data: registrationData,
-        //     count: registrationData.length,
-        //     timestamp: new Date().toISOString()
-        // });
-        
         res.status(200).json({
             success: true,
             data: registrationData,
@@ -1143,8 +1134,7 @@ exports.getClientRegistrations = async (req, res) => {
             });
         }
 
-        // Step 3: Fetch pending prospectus data for the IDs in the array
-        // with related prospectus data and bank account details
+        // Step 3: Fetch all registration data for the IDs in the array
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
             .select(`
@@ -1163,6 +1153,7 @@ exports.getClientRegistrations = async (req, res) => {
                 )
             `)
             .in('prospectus_id', client.prospectus_ids)
+            .eq('is_deleted', false);
 
         if (registrationError) {
             console.log('Error fetching pending registration data:', registrationError);
@@ -1174,13 +1165,6 @@ exports.getClientRegistrations = async (req, res) => {
         }
 
         // Step 4: Return the pending prospectus data
-        // console.log('Pending registration data:', {
-        //     success: true,
-        //     data: registrationData,
-        //     count: registrationData.length,
-        //     timestamp: new Date().toISOString()
-        // });
-        
         res.status(200).json({
             success: true,
             data: registrationData,
@@ -1469,6 +1453,7 @@ exports.getProspectusRegistrationData = async (req, res) => {
                 )
             `)
             .eq('id', regId)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
             
         if (registrationError) {
@@ -1497,6 +1482,7 @@ exports.getProspectusRegistrationData = async (req, res) => {
             .from('prospectus')
             .select('*')
             .eq('id', prospectusId)
+            .eq('is_deleted', false)
             .single();
             
         if (prospectusError) {
@@ -1523,6 +1509,7 @@ exports.getProspectusRegistrationData = async (req, res) => {
                 client:client_id(id, email)
             `)
             .eq('reg_id', regId)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
             
         if (quotationError) {
@@ -1645,7 +1632,8 @@ exports.getClientRegistrationHistory = async (req, res) => {
         const { data: prospectusData, error: prospectusError } = await supabase
             .from('prospectus')
             .select('*')
-            .in('id', client.prospectus_ids);
+            .in('id', client.prospectus_ids)
+            .eq('is_deleted', false);
             
         if (prospectusError) {
             console.error('Error fetching prospectus data:', prospectusError);
@@ -1678,6 +1666,7 @@ exports.getClientRegistrationHistory = async (req, res) => {
                     )
                 `)
                 .eq('prospectus_id', prospectus.id)
+                .eq('is_deleted', false)
                 .order('created_at', { ascending: false });
                 
             if (regError) {
@@ -1697,6 +1686,7 @@ exports.getClientRegistrationHistory = async (req, res) => {
                 .from('quotations')
                 .select('*')
                 .eq('prospectus_id', prospectus.id)
+                .eq('is_deleted', false)
                 .in('reg_id', registrationIds.length > 0 ? registrationIds : [0])  // Use [0] to ensure query works with empty array
                 .order('created_at', { ascending: false });
                 
@@ -1806,6 +1796,7 @@ exports.getCombinedRegistrationData = async (req, res) => {
                 )
             `)
             .eq('id', reg_id)
+            .eq('is_deleted', false)
             .single();
 
         if (registrationError) {
@@ -1830,6 +1821,7 @@ exports.getCombinedRegistrationData = async (req, res) => {
             .from('quotations')
             .select('id, reg_id, name, amount, notes, transaction_date, files, prospectus_id, created_at, updated_at')
             .eq('reg_id', reg_id)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
         if (quotationError) {
@@ -1850,6 +1842,7 @@ exports.getCombinedRegistrationData = async (req, res) => {
                 )
             `)
             .eq('prospectus_id', prospectusId)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
         if (journalError) {

@@ -382,6 +382,7 @@ exports.getProspectus = async (req, res) => {
           email
         )
       `)
+      .eq('is_deleted', false) // Only return non-deleted records
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -416,6 +417,7 @@ exports.getProspectusByExecutiveId = async (req, res) => {
       .from('prospectus')
       .select('*')
       .eq('entity_id', executiveId)
+      .eq('is_deleted', false) // Only return non-deleted records
       .not('isregistered', 'eq', true);
     if (error) {
       return res.status(400).json({
@@ -449,6 +451,7 @@ exports.getProspectusByRegId = async (req, res) => {
       .from('prospectus')
       .select('*')
       .eq('reg_id', regId)
+      .eq('is_deleted', false) // Only return non-deleted records
       .single();
 
     if (error) {
@@ -501,6 +504,7 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
         )
       `)
       .eq('registered_by', executiveId)
+      .eq('is_deleted', false) // Only return non-deleted records
       .order('created_at', { ascending: false });
 
     if (registrationError) {
@@ -546,6 +550,22 @@ exports.updateProspectus = async (req, res) => {
   } = req.body;
 
   try {
+    // Check if the record is soft-deleted before updating
+    const { data: existingProspectus, error: checkError } = await supabase
+      .from('prospectus')
+      .select('id')
+      .eq('id', id)
+      .eq('is_deleted', false)
+      .single();
+
+    if (checkError || !existingProspectus) {
+      return res.status(404).json({
+        success: false,
+        error: 'Prospectus not found or has been deleted',
+        timestamp: new Date().toISOString()
+      });
+    }
+
     const { data, error } = await supabase
       .from('prospectus')
       .update({
@@ -1110,7 +1130,8 @@ exports.getJournalDataByExecutive = async (req, res) => {
     const { data: prospectusRecords, error: prospectusError } = await supabase
       .from('prospectus')
       .select('id')
-      .eq('entity_id', user_id);
+      .eq('entity_id', user_id)
+      .eq('is_deleted', false); // Only return non-deleted records
 
     if (prospectusError) {
       console.error('Error fetching prospectus records:', prospectusError);
@@ -1157,6 +1178,7 @@ exports.getJournalDataByExecutive = async (req, res) => {
             )
           `)
           .in('prospectus_id', batchIds)
+          .eq('is_deleted', false) // Only return non-deleted records
           .order('created_at', { ascending: false });
 
         if (journalError) {
@@ -1196,6 +1218,7 @@ exports.getJournalDataByExecutive = async (req, res) => {
         )
       `)
       .eq('is_private', false)
+      .eq('is_deleted', false) // Only return non-deleted records
       .order('created_at', { ascending: false });
 
     if (publicError) {
@@ -1329,6 +1352,257 @@ exports.deleteEntity = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in deleteEntity:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Delete prospectus records by reg_id
+ * 
+ * This function deletes prospectus records based on the provided registration IDs.
+ * It supports deleting multiple records at once.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.body - Request body containing registration IDs
+ * @param {array} req.body.reg_id - Array of registration IDs to delete
+ * @param {object} res - Express response object
+ * @returns {object} JSON response indicating success or failure
+ */
+exports.deleteProspectus = async (req, res) => {
+  console.log('Executing: deleteProspectus');
+  const { reg_id } = req.body;
+
+  // Validate input
+  if (!reg_id || !Array.isArray(reg_id) || reg_id.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'An array of registration IDs is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Soft delete by setting is_deleted flag to true and recording deletion time
+    const { data, error } = await supabase
+      .from('prospectus')
+      .update({ 
+        is_deleted: true,
+        deleted_at: new Date().toISOString()
+      })
+      .in('reg_id', reg_id);
+
+    if (error) {
+      console.error('Error deleting prospectus:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully soft-deleted ${reg_id.length} prospectus record(s)`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in deleteProspectus:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Soft delete a prospectus record and its dependencies
+ * 
+ * This function calls the database function 'soft_delete_prospectus_and_dependents'
+ * to mark the prospectus and related records as deleted without actually removing them.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.id - Prospectus ID to soft delete
+ * @param {object} res - Express response object
+ * @returns {object} JSON response indicating success or failure
+ */
+exports.softDeleteProspectus = async (req, res) => {
+  console.log('Executing: softDeleteProspectus');
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Prospectus ID is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Check if prospectus exists
+    const { data: prospectus, error: checkError } = await supabase
+      .from('prospectus')
+      .select('id')
+      .eq('id', id)
+      .eq('is_deleted', false)
+      .single();
+
+    if (checkError || !prospectus) {
+      return res.status(404).json({
+        success: false,
+        error: 'Prospectus not found or already deleted',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Call the database function to soft delete prospectus and its dependencies
+    const { data, error } = await supabase.rpc('soft_delete_prospectus_and_dependents', {
+      p_id: parseInt(id)
+    });
+
+    if (error) {
+      console.error('Error soft deleting prospectus:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Prospectus and related records have been soft deleted',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in softDeleteProspectus:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Restore a soft-deleted prospectus record and its dependencies
+ * 
+ * This function calls the database function 'restore_prospectus_and_dependents'
+ * to restore the prospectus and related records that were previously soft-deleted.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.id - Prospectus ID to restore
+ * @param {object} res - Express response object
+ * @returns {object} JSON response indicating success or failure
+ */
+exports.restoreProspectus = async (req, res) => {
+  console.log('Executing: restoreProspectus');
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      error: 'Prospectus ID is required',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Check if prospectus exists and is deleted
+    const { data: prospectus, error: checkError } = await supabase
+      .from('prospectus')
+      .select('id')
+      .eq('id', id)
+      .eq('is_deleted', true)
+      .single();
+
+    if (checkError || !prospectus) {
+      return res.status(404).json({
+        success: false,
+        error: 'Prospectus not found or not deleted',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Call the database function to restore prospectus and its dependencies
+    const { data, error } = await supabase.rpc('restore_prospectus_and_dependents', {
+      p_id: parseInt(id)
+    });
+
+    if (error) {
+      console.error('Error restoring prospectus:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Prospectus and related records have been restored',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in restoreProspectus:', error);
+    res.status(500).json({
+      success: false,
+      error: 'An unexpected error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Get all soft-deleted prospectus records
+ * 
+ * This function retrieves all prospectus records that have been soft-deleted
+ * for viewing in a recycle bin or restoration interface.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with deleted prospectus data or error
+ */
+exports.getDeletedProspectus = async (req, res) => {
+  console.log('Executing: getDeletedProspectus');
+
+  try {
+    const { data, error } = await supabase
+      .from('prospectus')
+      .select(`
+        *,
+        entities:entity_id (
+          id,
+          username,
+          email
+        )
+      `)
+      .eq('is_deleted', true)
+      .order('deleted_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching deleted prospectus records:', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data,
+      count: data.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in getDeletedProspectus:', error);
     res.status(500).json({
       success: false,
       error: 'An unexpected error occurred',

@@ -19,7 +19,11 @@ const {
     verifyPassword,
     changePassword,
     getJournalDataByExecutive,
-    deleteEntity
+    deleteEntity,
+    deleteProspectus,
+    softDeleteProspectus,
+    restoreProspectus,
+    getDeletedProspectus
 } = require('../controllers/entityController');
 const auth = require('../middleware/auth');
 
@@ -39,6 +43,12 @@ router.get('/prospectus/all', auth, getProspectus);
 router.get('/prospectus/:executiveId', auth, getProspectusByExecutiveId);
 router.get('/prospectus/register/:regId', auth, getProspectusByRegId);
 router.put('/prospectus/:id', auth, updateProspectus);
+router.delete('/prospectus/delete', auth, deleteProspectus);
+
+// Add new soft delete and restore routes
+router.put('/prospectus/:id/soft-delete', auth, softDeleteProspectus);
+router.put('/prospectus/:id/restore', auth, restoreProspectus);
+router.get('/prospectus/deleted/all', auth, getDeletedProspectus);
 
 // Update the registration route to support pagination query parameters
 router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);

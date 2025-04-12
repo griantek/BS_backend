@@ -24,7 +24,7 @@ router.get('/:id/registration/quotationReview',auth, clientController.getClientQ
 router.get('/:id/registration/',auth, clientController.getClientRegistrations);
 
 // Client payment endpoint
-router.post('/payment/submit', auth, clientController.submitClientPayment);
+// router.post('/payment/submit', auth, clientController.submitClientPayment);
 
 // Place generic ID route last
 router.get('/:id', auth, clientController.getClientById);
