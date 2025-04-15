@@ -753,3 +753,62 @@ exports.approveLeadToProspectus = async (req, res) => {
         });
     }
 };
+
+/**
+ * Get leads by creator (created_by)
+ * 
+ * This function retrieves all leads created by a specific entity ID.
+ * It's useful for administrators or managers who need to view all leads
+ * associated with a particular team member.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.creatorId - ID of the lead creator to filter by
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with leads data or error
+ */
+exports.getLeadsByCreator = async (req, res) => {
+    console.log('Executing: getLeadsByCreator');
+    const { creatorId } = req.params;
+
+    if (!creatorId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Creator ID is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('leads')
+            .select(`
+                *
+            `)
+            .eq('created_by', creatorId)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.log('Error fetching leads by creator:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            count: data.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getLeadsByCreator:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};

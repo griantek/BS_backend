@@ -915,3 +915,281 @@ exports.updateRegistrationToPending = async (req, res) => {
         });
     }
 };
+
+/**
+ * Get comprehensive dashboard data for admin dashboard
+ * 
+ * This function aggregates data from multiple tables to provide a complete
+ * overview of system metrics including entity counts, content metrics,
+ * financial data, recent activities, and more.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @returns {object} JSON with dashboard metrics
+ */
+exports.getDashboardData = async (req, res) => {
+    console.log('Executing: getDashboardData');
+
+    try {
+        // ===== Entity Counts =====
+        const { data: entityCounts, error: entityError } = await supabase.rpc('get_entity_counts');
+        
+        if (entityError) {
+            console.error('Error fetching entity counts:', entityError);
+            return res.status(400).json({
+                success: false,
+                error: entityError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Content Metrics =====
+        // Get prospectus count
+        const { count: prospectusCount, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (prospectusError) {
+            console.error('Error fetching prospectus count:', prospectusError);
+            return res.status(400).json({
+                success: false,
+                error: prospectusError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get registration count
+        const { count: registrationCount, error: registrationError } = await supabase
+            .from('registration')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (registrationError) {
+            console.error('Error fetching registration count:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get journal count
+        const { count: journalCount, error: journalError } = await supabase
+            .from('journal_data')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (journalError) {
+            console.error('Error fetching journal count:', journalError);
+            return res.status(400).json({
+                success: false,
+                error: journalError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get leads count
+        const { count: leadsCount, error: leadsError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true });
+
+        if (leadsError) {
+            console.error('Error fetching leads count:', leadsError);
+            return res.status(400).json({
+                success: false,
+                error: leadsError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Financial Metrics =====
+        // Get total revenue and average transaction value
+        const { data: financialMetrics, error: financialError } = await supabase.rpc('get_financial_metrics');
+        
+        if (financialError) {
+            console.error('Error fetching financial metrics:', financialError);
+            return res.status(400).json({
+                success: false,
+                error: financialError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get recent transactions
+        const { data: recentTransactions, error: transactionError } = await supabase
+            .from('transactions')
+            .select(`
+                id,
+                transaction_type,
+                amount,
+                transaction_date,
+                entities:entity_id(id, username)
+            `)
+            .order('transaction_date', { ascending: false })
+            .limit(5);
+
+        if (transactionError) {
+            console.error('Error fetching recent transactions:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get pending amount from registrations (sum of init_amount where status is pending)
+        const { data: pendingData, error: pendingError } = await supabase
+            .from('registration')
+            .select('init_amount')
+            .eq('status', 'pending')
+            .eq('is_deleted', false);
+
+        if (pendingError) {
+            console.error('Error fetching pending amounts:', pendingError);
+            return res.status(400).json({
+                success: false,
+                error: pendingError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const pendingAmount = pendingData.reduce((sum, registration) => {
+            return sum + (parseFloat(registration.init_amount) || 0);
+        }, 0);
+
+        // ===== Recent Activities =====
+        // Get recent executives (entities with executive role)
+        const { data: recentExecutives, error: executivesError } = await supabase
+            .from('entities')
+            .select(`
+                id,
+                username,
+                role_details:roles!role(name, entity_type),
+                created_at
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (executivesError) {
+            console.error('Error fetching recent executives:', executivesError);
+            return res.status(400).json({
+                success: false,
+                error: executivesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get recent services
+        const { data: recentServices, error: servicesError } = await supabase
+            .from('services')
+            .select('id, service_name, fee')
+            .order('updated_at', { ascending: false })
+            .limit(5);
+
+        if (servicesError) {
+            console.error('Error fetching recent services:', servicesError);
+            return res.status(400).json({
+                success: false,
+                error: servicesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Journal Metrics =====
+        // Get journal status distribution
+        const { data: journalMetrics, error: journalMetricsError } = await supabase.rpc('get_journal_status_distribution');
+        
+        if (journalMetricsError) {
+            console.error('Error fetching journal metrics:', journalMetricsError);
+            return res.status(400).json({
+                success: false,
+                error: journalMetricsError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Service Metrics =====
+        // Get total services count
+        const { count: servicesCount, error: serviceCountError } = await supabase
+            .from('services')
+            .select('id', { count: 'exact', head: true });
+
+        if (serviceCountError) {
+            console.error('Error fetching services count:', serviceCountError);
+            return res.status(400).json({
+                success: false,
+                error: serviceCountError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get top services (most used in registrations)
+        const { data: topServices, error: topServicesError } = await supabase.rpc('get_top_services');
+        
+        if (topServicesError) {
+            console.error('Error fetching top services:', topServicesError);
+            return res.status(400).json({
+                success: false,
+                error: topServicesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Compile All Data =====
+        const dashboardData = {
+            entityCounts: entityCounts || {
+                total: 0,
+                executive: 0,
+                editor: 0,
+                author: 0,
+                admin: 0,
+                other: 0
+            },
+            contentMetrics: {
+                prospectus: prospectusCount || 0,
+                registrations: registrationCount || 0,
+                journals: journalCount || 0,
+                leads: leadsCount || 0
+            },
+            financialMetrics: {
+                totalRevenue: financialMetrics?.total_revenue || 0,
+                averageTransactionValue: financialMetrics?.average_transaction_value || 0,
+                pendingAmount: pendingAmount || 0,
+                recentTransactions: recentTransactions || []
+            },
+            recentActivities: {
+                recentExecutives: recentExecutives || [],
+                recentServices: recentServices || []
+            },
+            journalMetrics: {
+                total: journalMetrics?.total || 0,
+                statusDistribution: {
+                    pending: journalMetrics?.pending || 0,
+                    under_review: journalMetrics?.under_review || 0,
+                    approved: journalMetrics?.approved || 0,
+                    rejected: journalMetrics?.rejected || 0,
+                    submitted: journalMetrics?.submitted || 0
+                }
+            },
+            serviceMetrics: {
+                total: servicesCount || 0,
+                topServices: topServices || []
+            }
+        };
+
+        res.status(200).json({
+            success: true,
+            data: dashboardData,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getDashboardData:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};

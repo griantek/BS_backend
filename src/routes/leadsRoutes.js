@@ -11,8 +11,9 @@ router.get('/today-followup', auth, leadsController.getLeadsByFollowup);
 router.get('/source/:source', auth, leadsController.getLeadsBySource);
 router.get('/domain/:domain', auth, leadsController.getLeadsByDomain);
 router.get('/assignee/:assignee_id', auth, leadsController.getLeadsByAssignee);
+router.get('/creator/:creatorId', auth, leadsController.getLeadsByCreator); // New route for leads by creator
 router.put('/:id/status', auth, leadsController.updateLeadStatus);
-router.post('/:id/approve', auth, leadsController.approveLeadToProspectus); // New route for lead approval/conversion
+router.post('/:id/approve', auth, leadsController.approveLeadToProspectus);
 router.get('/:id', auth, leadsController.getLeadById);
 router.post('/', auth, leadsController.createLead);
 router.put('/:id', auth, leadsController.updateLead);
