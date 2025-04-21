@@ -605,7 +605,7 @@ exports.getJournalDataByEditor = async (req, res) => {
 
         // Apply search filters if provided
         if (searchTerm) {
-            query = query.or(`client_name.ilike.%${searchTerm}%,journal_name.ilike.%${searchTerm}%,paper_title.ilike.%${searchTerm}%`);
+            query = query.or(`personal_email.ilike.%${searchTerm}%,client_name.ilike.%${searchTerm}%,journal_name.ilike.%${searchTerm}%,paper_title.ilike.%${searchTerm}%`);
         }
 
         // Apply sorting
