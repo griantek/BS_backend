@@ -800,6 +800,7 @@ exports.assignRegistration = async (req, res) => {
                 assigned_to,
                 admin_assigned: true,
                 status: 'registered',
+                registration_date: new Date().toISOString(), // Add registration date when status becomes 'registered'
                 updated_at: new Date().toISOString()
             })
             .eq('id', registrationId)
