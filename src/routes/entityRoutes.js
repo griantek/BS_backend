@@ -51,7 +51,7 @@ router.put('/prospectus/:id/restore', auth, restoreProspectus);
 router.get('/prospectus/deleted/all', auth, getDeletedProspectus);
 
 // Update the registration route to support pagination query parameters
-router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
+router.get('/registrations/:executiveId', getRegistrationsByExecutiveId);
 
 // Add this new route with your other routes
 router.get('/all', auth, getAllEntites);

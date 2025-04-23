@@ -487,37 +487,87 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
   const { executiveId } = req.params;
 
   try {
-    const { data: registrations, error: registrationError } = await supabase
+    // Get all registrations for the executive with prospectus and leads data
+    const { data: registrations, error } = await supabase
       .from('registration')
       .select(`
         *,
-        prospectus:prospectus_id(*),
-        bank_accounts:bank_id(*),
-        transactions:transaction_id(
+        prospectus:prospectus_id(
           *,
-          entities:entity_id(*)
+          leads:leads_id(*)
         ),
-        assigned_executive:assigned_to(
-          id,
-          username,
-          email
-        )
+        bank_details:bank_id(*),
+        transactions:transaction_id(*)
       `)
       .eq('registered_by', executiveId)
       .eq('is_deleted', false) // Only return non-deleted records
       .order('created_at', { ascending: false });
 
-    if (registrationError) {
+    if (error) {
+      console.log('Error fetching registrations:', error);
       return res.status(400).json({
         success: false,
-        error: registrationError.message,
+        error: error.message,
         timestamp: new Date().toISOString()
       });
     }
 
+    // Format the response to make it more structured
+    const formattedRegistrations = registrations.map(reg => ({
+      registration: {
+        id: reg.id,
+        date: reg.date,
+        services: reg.services,
+        init_amount: reg.init_amount,
+        accept_amount: reg.accept_amount,
+        discount: reg.discount,
+        total_amount: reg.total_amount,
+        accept_period: reg.accept_period,
+        pub_period: reg.pub_period,
+        status: reg.status,
+        month: reg.month,
+        year: reg.year,
+        notes: reg.notes,
+        created_at: reg.created_at,
+        updated_at: reg.updated_at
+      },
+      prospectus: reg.prospectus ? {
+        id: reg.prospectus.id,
+        reg_id: reg.prospectus.reg_id,
+        client_name: reg.prospectus.client_name,
+        email: reg.prospectus.email,
+        phone: reg.prospectus.phone,
+        department: reg.prospectus.department,
+        state: reg.prospectus.state,
+        tech_person: reg.prospectus.tech_person,
+        requirement: reg.prospectus.requirement,
+        services: reg.prospectus.services,
+        proposed_service_period: reg.prospectus.proposed_service_period,
+        notes: reg.prospectus.notes,
+        next_follow_up: reg.prospectus.next_follow_up,
+        isregistered: reg.prospectus.isregistered
+      } : null,
+      leads: reg.prospectus?.leads ? {
+        id: reg.prospectus.leads.id,
+        date: reg.prospectus.leads.date,
+        lead_source: reg.prospectus.leads.lead_source,
+        client_name: reg.prospectus.leads.client_name,
+        phone_number: reg.prospectus.leads.phone_number,
+        domain: reg.prospectus.leads.domain,
+        research_area: reg.prospectus.leads.research_area,
+        requirement: reg.prospectus.leads.requirement,
+        detailed_requirement: reg.prospectus.leads.detailed_requirement,
+        prospectus_type: reg.prospectus.leads.prospectus_type,
+        followup_date: reg.prospectus.leads.followup_date,
+        followup_status: reg.prospectus.leads.followup_status
+      } : null,
+      bank_details: reg.bank_details || null,
+      transaction: reg.transactions || null
+    }));
+
     res.status(200).json({
       success: true,
-      data: registrations,
+      data: formattedRegistrations,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
