@@ -662,6 +662,8 @@ exports.getAllRegistrations = async (req, res) => {
                 prospectus_id: reg.prospectus_id,
                 services: reg.services,
                 init_amount: reg.init_amount,
+                secondary_payment: reg.secondary_payment,
+                final_payment: reg.final_payment,
                 accept_amount: reg.accept_amount,
                 discount: reg.discount,
                 total_amount: reg.total_amount,
@@ -706,7 +708,10 @@ exports.getRegistrationById = async (req, res) => {
             .from('registration')
             .select(`
             *,
-            prospectus:prospectus_id(*),
+            prospectus:prospectus_id(
+                *,
+                leads:leads_id(*)
+            ),
             bank_accounts:bank_id(*),
             transactions(*)
             `)

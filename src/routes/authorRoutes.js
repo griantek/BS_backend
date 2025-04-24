@@ -4,8 +4,8 @@ const { getAssignedRegistrations, updateAuthorStatus, uploadPaper } = require('.
 
 const router = express.Router();
 
-router.get('/assigned-registrations/:executive_id', getAssignedRegistrations);
-router.put('/status/:regId', updateAuthorStatus);
-router.post('/upload-paper', uploadPaper);
+router.get('/assigned-registrations/:executive_id', auth, getAssignedRegistrations);
+router.put('/status/:regId', auth, updateAuthorStatus);
+router.post('/upload-paper', auth, uploadPaper);
 
 module.exports = router;

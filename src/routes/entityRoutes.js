@@ -51,14 +51,14 @@ router.put('/prospectus/:id/restore', auth, restoreProspectus);
 router.get('/prospectus/deleted/all', auth, getDeletedProspectus);
 
 // Update the registration route to support pagination query parameters
-router.get('/registrations/:executiveId', getRegistrationsByExecutiveId);
+router.get('/registrations/:executiveId', auth, getRegistrationsByExecutiveId);
 
 // Add this new route with your other routes
 router.get('/all', auth, getAllEntites);
-router.get('/editors/all', getAllEditors);
-router.get('/author/all', getAllAuthors);
-router.get('/exec/all', getAllExecutives);
-router.get('/editors-authors/all',  getAllEditorsAndAuthors);
+router.get('/editors/all', auth, getAllEditors);
+router.get('/author/all', auth, getAllAuthors);
+router.get('/exec/all', auth, getAllExecutives);
+router.get('/editors-authors/all', auth,  getAllEditorsAndAuthors);
 
 // Add new routes for profile management
 router.post('/verify-password', auth, verifyPassword);
@@ -66,7 +66,7 @@ router.put('/:id/user-profile', auth, updateUserProfile);
 router.put('/:id/change-password', auth, changePassword);
 
 // Add this route for getting journal data from leads
-router.post('/journal-data-by-executive',  getJournalDataByExecutive);
+router.post('/journal-data-by-executive', auth,  getJournalDataByExecutive);
 
 // Add the new route for entity deletion
 router.delete('/:id', auth, deleteEntity);

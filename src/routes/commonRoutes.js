@@ -65,6 +65,6 @@ router.put('/departments/:id', auth, updateDepartment);
 router.delete('/departments/:id', auth, deleteDepartment);
 
 // Password decryption route
-router.post('/decrypt-password', decryptPassword);
+router.post('/decrypt-password',auth, decryptPassword);
 
 module.exports = router;

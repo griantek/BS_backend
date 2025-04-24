@@ -38,7 +38,7 @@ router.get('/roles/:id', auth, getRoleById);
 router.post('/roles/create', auth, createRole);
 router.put('/roles/:id', auth, updateRole);
 router.delete('/roles/:id', auth, deleteRole);
-router.get('/roles/:id/permissions', getRoleWithPermissions);
+router.get('/roles/:id/permissions', auth, getRoleWithPermissions);
 
 // Permissions
 router.get('/permissions/all', auth, getAllPermissions);

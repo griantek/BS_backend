@@ -681,6 +681,8 @@ exports.getRegistrationForApproval = async (req, res) => {
                     date: reg.date,
                     services: reg.services,
                     initialAmount: reg.init_amount,
+                    secondary_payment: reg.secondary_payment,
+                    final_payment: reg.final_payment,
                     acceptedAmount: reg.accept_amount,
                     discount: reg.discount,
                     totalAmount: reg.total_amount,

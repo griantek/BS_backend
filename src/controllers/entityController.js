@@ -519,6 +519,8 @@ exports.getRegistrationsByExecutiveId = async (req, res) => {
         date: reg.date,
         services: reg.services,
         init_amount: reg.init_amount,
+        secondary_payment: reg.secondary_payment,
+        final_payment: reg.final_payment,
         accept_amount: reg.accept_amount,
         discount: reg.discount,
         total_amount: reg.total_amount,
