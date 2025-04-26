@@ -661,7 +661,7 @@ exports.getRegistrationForApproval = async (req, res) => {
                 transaction_details:transaction_id(*)
             `)
             .eq('admin_assigned', false)
-            .eq('is_deleted', false)  // Add filter for is_deleted = false
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
         if (regError) {
@@ -1019,7 +1019,7 @@ exports.getDashboardData = async (req, res) => {
             });
         }
 
-        // Get recent transactions
+        // Get recent transactions - update to filter out deleted transactions
         const { data: recentTransactions, error: transactionError } = await supabase
             .from('transactions')
             .select(`
@@ -1029,6 +1029,7 @@ exports.getDashboardData = async (req, res) => {
                 transaction_date,
                 entities:entity_id(id, username)
             `)
+            .eq('is_deleted', false) // Only include non-deleted transactions
             .order('transaction_date', { ascending: false })
             .limit(5);
 

@@ -535,6 +535,7 @@ exports.createTransaction = async (req, res) => {
                 transaction_date,
                 additional_info,
                 entity_id
+                // is_deleted is handled by the database default constraint
             }])
             .select()
             .single();
@@ -576,6 +577,7 @@ exports.getAllTransactions = async (req, res) => {
                     username
                 )
             `)
+            .eq('is_deleted', false) // Only fetch non-deleted transactions
             .order('transaction_date', { ascending: false });
 
         if (error) {
@@ -704,7 +706,8 @@ exports.getRegistrationById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const { data, error } = await supabase
+        // Fetch registration with primary transaction
+        const { data: registration, error } = await supabase
             .from('registration')
             .select(`
             *,
@@ -713,10 +716,11 @@ exports.getRegistrationById = async (req, res) => {
                 leads:leads_id(*)
             ),
             bank_accounts:bank_id(*),
-            transactions(*)
+            transactions!inner(*)
             `)
             .eq('id', id)
             .eq('is_deleted', false)
+            .eq('transactions.is_deleted', false)
             .single();
 
         if (error) {
@@ -728,7 +732,7 @@ exports.getRegistrationById = async (req, res) => {
             });
         }
 
-        if (!data) {
+        if (!registration) {
             return res.status(404).json({
                 success: false,
                 error: 'Registration not found',
@@ -736,9 +740,44 @@ exports.getRegistrationById = async (req, res) => {
             });
         }
 
+        // Prepare response data
+        const responseData = { ...registration };
+
+        // Fetch secondary payment transaction if exists
+        if (registration.secondary_payment) {
+            const { data: secondaryTransaction, error: secondaryError } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('id', registration.secondary_payment)
+                .eq('is_deleted', false)
+                .single();
+
+            if (secondaryError) {
+                console.log('Error fetching secondary payment transaction:', secondaryError);
+            } else if (secondaryTransaction) {
+                responseData.secondary_transaction = secondaryTransaction;
+            }
+        }
+
+        // Fetch final payment transaction if exists
+        if (registration.final_payment) {
+            const { data: finalTransaction, error: finalError } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('id', registration.final_payment)
+                .eq('is_deleted', false)
+                .single();
+
+            if (finalError) {
+                console.log('Error fetching final payment transaction:', finalError);
+            } else if (finalTransaction) {
+                responseData.final_transaction = finalTransaction;
+            }
+        }
+
         res.status(200).json({
             success: true,
-            data,
+            data: responseData,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -830,8 +869,8 @@ exports.createRegistration = async (req, res) => {
             }])
             .select()
             .single();
-        
-        
+
+
         if (registrationError) {
             console.log('Error creating registration:', registrationError);
             // You might want to delete the transaction if registration fails
@@ -878,7 +917,7 @@ exports.createRegistration = async (req, res) => {
 };
 
 exports.updateRegistration = async (req, res) => {
-    console.log('Executing: updateRegistration',req.body);
+    console.log('Executing: updateRegistration', req.body);
     const { id } = req.params;
 
     try {
@@ -1087,7 +1126,7 @@ exports.deleteRegistration = async (req, res) => {
             });
         }
 
-        // Soft delete instead of hard delete
+        // Soft delete the registration
         const { error: registrationError } = await supabase
             .from('registration')
             .update({
@@ -1105,9 +1144,25 @@ exports.deleteRegistration = async (req, res) => {
             });
         }
 
+        // Also soft delete the associated transaction if it exists
+        if (registration.transaction_id) {
+            const { error: transactionError } = await supabase
+                .from('transactions')
+                .update({
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString()
+                })
+                .eq('id', registration.transaction_id);
+
+            if (transactionError) {
+                console.log('Error soft-deleting transaction:', transactionError);
+                // Continue even if transaction deletion fails
+            }
+        }
+
         res.status(200).json({
             success: true,
-            message: 'Registration soft-deleted successfully',
+            message: 'Registration and associated transaction soft-deleted successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -1454,6 +1509,192 @@ exports.decryptPassword = async (req, res) => {
         res.status(400).json({
             success: false,
             error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+//====================================
+// Secondary and Final Payment Transactions
+//====================================
+exports.addSecondaryPaymentTransaction = async (req, res) => {
+    console.log('Executing: addSecondaryPaymentTransaction');
+    const {
+        registration_id,
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        entity_id
+    } = req.body;
+
+    try {
+        if (!registration_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Registration ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // First, create the transaction
+        const { data: transactionData, error: transactionError } = await supabase
+            .from('transactions')
+            .insert([{
+                transaction_type,
+                transaction_id: external_transaction_id,
+                amount: amount || 0,
+                transaction_date,
+                additional_info,
+                entity_id
+            }])
+            .select()
+            .single();
+
+        if (transactionError) {
+            console.log('Error creating secondary payment transaction:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration with the secondary payment transaction ID
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .update({
+                secondary_payment: transactionData.id,
+                is_secondary_payment_done: true,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registration_id)
+            .select()
+            .single();
+
+        if (registrationError) {
+            console.log('Error updating registration with secondary payment:', registrationError);
+            // Rollback the transaction if the registration update fails
+            await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', transactionData.id);
+
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                registration: registrationData,
+                transaction: transactionData
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in addSecondaryPaymentTransaction:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.addFinalPaymentTransaction = async (req, res) => {
+    console.log('Executing: addFinalPaymentTransaction');
+    const {
+        registration_id,
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        entity_id
+    } = req.body;
+
+    try {
+        if (!registration_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Registration ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // First, create the transaction
+        const { data: transactionData, error: transactionError } = await supabase
+            .from('transactions')
+            .insert([{
+                transaction_type,
+                transaction_id: external_transaction_id,
+                amount: amount || 0,
+                transaction_date,
+                additional_info,
+                entity_id
+            }])
+            .select()
+            .single();
+
+        if (transactionError) {
+            console.log('Error creating final payment transaction:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration with the final payment transaction ID
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .update({
+                final_payment: transactionData.id,
+                is_final_payment_done: true,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registration_id)
+            .select()
+            .single();
+
+        if (registrationError) {
+            console.log('Error updating registration with final payment:', registrationError);
+            // Rollback the transaction if the registration update fails
+            await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', transactionData.id);
+
+            console.log({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                registration: registrationData,
+                transaction: transactionData
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in addFinalPaymentTransaction:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
             timestamp: new Date().toISOString()
         });
     }

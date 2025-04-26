@@ -44,6 +44,7 @@ exports.getAssignedRegistrations = async (req, res) => {
                     department,
                     state,
                     tech_person,
+                    leads:leads_id(*),
                     entity:entity_id (
                         id,
                         username,
@@ -55,9 +56,9 @@ exports.getAssignedRegistrations = async (req, res) => {
             .eq('status', 'registered')
             .eq('journal_added', false)
             .eq('is_deleted', false);
-            
+
         if (registrationError) throw registrationError;
-        
+
         if (!registrations || registrations.length === 0) {
             return res.status(200).json({
                 success: true,
@@ -65,7 +66,7 @@ exports.getAssignedRegistrations = async (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
-        
+
         // The data is already in the format we need from the joined query
         res.status(200).json({
             success: true,
@@ -87,7 +88,7 @@ exports.updateAuthorStatus = async (req, res) => {
     console.log('Executing: updateAuthorStatus');
     const { regId } = req.params;
     const { status, comments } = req.body;
-    
+
     if (!status) {
         return res.status(400).json({
             success: false,
@@ -148,7 +149,7 @@ exports.updateAuthorStatus = async (req, res) => {
 
 exports.uploadPaper = async (req, res) => {
     console.log('Executing: uploadPaper');
-    
+
     upload(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
             return res.status(400).json({
@@ -163,10 +164,10 @@ exports.uploadPaper = async (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
-        
+
         // After successful upload, process the request
-        const { status, comments, reg_id } = req.body;
-        
+        const { status, comments, reg_id, admin_assigned, registration_status } = req.body;
+
         if (!status) {
             return res.status(400).json({
                 success: false,
@@ -192,7 +193,7 @@ exports.uploadPaper = async (req, res) => {
                 .single();
 
             if (checkError) throw checkError;
-            
+
             if (!existingReg) {
                 return res.status(404).json({
                     success: false,
@@ -202,23 +203,31 @@ exports.uploadPaper = async (req, res) => {
             }
 
             // Prepare update data
-            const updateData = { 
-                author_status: status, 
+            const updateData = {
+                author_status: status,
                 updated_at: new Date()
             };
-            
+
             // Add comments if provided
             if (comments) {
                 updateData.author_comments = comments;
             }
-            
+
+            if (registration_status) {
+                updateData.status = registration_status;
+            }
+
+            if (admin_assigned) {
+                updateData.admin_assigned = admin_assigned;
+            }
+
             // Upload file to Supabase if provided
             let fileUrl = null;
             if (req.file) {
                 const fileExt = path.extname(req.file.originalname);
                 const fileName = `${uuidv4()}${fileExt}`;
                 const filePath = `papers/${reg_id}/${fileName}`;
-                
+
                 // Upload to Supabase storage
                 const { data: uploadData, error: uploadError } = await supabase
                     .storage
@@ -227,27 +236,27 @@ exports.uploadPaper = async (req, res) => {
                         contentType: req.file.mimetype,
                         cacheControl: '3600'
                     });
-                
+
                 if (uploadError) throw uploadError;
-                
+
                 // Get public URL for the file
                 const { data: publicUrlData } = supabase
                     .storage
                     .from('author-papers')
                     .getPublicUrl(filePath);
-                
+
                 fileUrl = publicUrlData.publicUrl;
-                
+
                 // Store file URL in file_path field (matches the database schema)
                 updateData.file_path = fileUrl;
-                
+
                 // Also mention the file name in the comments for reference
                 const fileComment = `File uploaded: ${req.file.originalname}`;
-                updateData.author_comments = comments 
-                    ? `${comments}\n\n${fileComment}` 
+                updateData.author_comments = comments
+                    ? `${comments}\n\n${fileComment}`
                     : fileComment;
             }
-            
+
             // Update the registration in the database
             const { data, error } = await supabase
                 .from('registration')

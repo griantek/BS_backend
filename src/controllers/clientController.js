@@ -1150,10 +1150,12 @@ exports.getClientRegistrations = async (req, res) => {
                     bank, 
                     upi_id, 
                     branch
-                )
+                ),
+                transactions:transaction_id(*)
             `)
             .in('prospectus_id', client.prospectus_ids)
-            .eq('is_deleted', false);
+            .eq('is_deleted', false)
+            .eq('transactions.is_deleted', false); // Only include non-deleted transactions
 
         if (registrationError) {
             console.log('Error fetching pending registration data:', registrationError);
@@ -1531,6 +1533,7 @@ exports.getProspectusRegistrationData = async (req, res) => {
                     )
                 `)
                 .eq('id', registrations[0].transaction_id)
+                .eq('is_deleted', false) // Only include non-deleted transactions
                 .single();
                 
             if (transactionError) {
@@ -1864,6 +1867,7 @@ exports.getCombinedRegistrationData = async (req, res) => {
                     )
                 `)
                 .eq('id', registrationData.transaction_id)
+                .eq('is_deleted', false) // Only include non-deleted transactions
                 .single();
 
             if (transactionError) {

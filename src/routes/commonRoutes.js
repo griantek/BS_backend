@@ -24,7 +24,9 @@ const {
     deleteBankAccount,
     approveRegistration,
     decryptPassword,
-    updateRegistrationInvoice
+    updateRegistrationInvoice,
+    addSecondaryPaymentTransaction,
+    addFinalPaymentTransaction
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -56,6 +58,9 @@ router.put('/registration/invoice/:id', auth, updateRegistrationInvoice);
 // Transaction routes
 router.get('/transactions/all', auth, getAllTransactions);
 router.post('/transactions/create', auth, createTransaction);
+router.post('/transaction', auth, createTransaction);
+router.post('/transaction/secondary-payment', auth, addSecondaryPaymentTransaction);
+router.post('/transaction/final-payment', auth, addFinalPaymentTransaction);
 
 // Department routes
 router.get('/departments/all', auth, getAllDepartments);
