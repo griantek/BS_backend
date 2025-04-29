@@ -917,14 +917,14 @@ exports.createRegistration = async (req, res) => {
 };
 
 exports.updateRegistration = async (req, res) => {
-    console.log('Executing: updateRegistration', req.body);
+    console.log('Executing: updateRegistration');
     const { id } = req.params;
 
     try {
-        // First get the current registration to get the transaction_id
+        // First get the current registration to get the transaction IDs
         const { data: currentRegistration, error: fetchError } = await supabase
             .from('registration')
-            .select('transaction_id')
+            .select('transaction_id, secondary_payment, final_payment')
             .eq('id', id)
             .eq('is_deleted', false)
             .single();
@@ -953,13 +953,17 @@ exports.updateRegistration = async (req, res) => {
             month,
             year,
 
-            // Transaction details
+            // Primary transaction details
             transaction_type,
             transaction_id: external_transaction_id,
             amount,
             transaction_date,
             additional_info,
-            entity_id
+            entity_id,
+            
+            // Secondary and final payment data
+            secondary_payment_data,
+            final_payment_data
         } = req.body;
 
         // Update registration data
@@ -992,7 +996,7 @@ exports.updateRegistration = async (req, res) => {
             });
         }
 
-        // Update transaction data
+        // Update primary transaction data
         const { data: transactionData, error: transactionError } = await supabase
             .from('transactions')
             .update({
@@ -1017,11 +1021,64 @@ exports.updateRegistration = async (req, res) => {
             });
         }
 
+        // Track all transaction updates
+        const transactionUpdates = {
+            primary: transactionData
+        };
+
+        // Update secondary payment transaction if it exists and data is provided
+        if (secondary_payment_data && currentRegistration.secondary_payment) {
+            const { data: secondaryTransactionData, error: secondaryTransactionError } = await supabase
+                .from('transactions')
+                .update({
+                    transaction_type: secondary_payment_data.transaction_type,
+                    transaction_id: secondary_payment_data.transaction_id,
+                    amount: parseFloat(secondary_payment_data.amount || 0),
+                    transaction_date: secondary_payment_data.transaction_date,
+                    additional_info: secondary_payment_data.additional_info,
+                    entity_id: secondary_payment_data.entity_id || entity_id, // Use primary entity_id as fallback
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentRegistration.secondary_payment)
+                .select()
+                .single();
+
+            if (secondaryTransactionError) {
+                console.log('Error updating secondary transaction:', secondaryTransactionError);
+            } else {
+                transactionUpdates.secondary = secondaryTransactionData;
+            }
+        }
+
+        // Update final payment transaction if it exists and data is provided
+        if (final_payment_data && currentRegistration.final_payment) {
+            const { data: finalTransactionData, error: finalTransactionError } = await supabase
+                .from('transactions')
+                .update({
+                    transaction_type: final_payment_data.transaction_type,
+                    transaction_id: final_payment_data.transaction_id,
+                    amount: parseFloat(final_payment_data.amount || 0),
+                    transaction_date: final_payment_data.transaction_date,
+                    additional_info: final_payment_data.additional_info,
+                    entity_id: final_payment_data.entity_id || entity_id, // Use primary entity_id as fallback
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentRegistration.final_payment)
+                .select()
+                .single();
+
+            if (finalTransactionError) {
+                console.log('Error updating final transaction:', finalTransactionError);
+            } else {
+                transactionUpdates.final = finalTransactionData;
+            }
+        }
+
         res.status(200).json({
             success: true,
             data: {
                 registration: registrationData,
-                transaction: transactionData
+                transactions: transactionUpdates
             },
             timestamp: new Date().toISOString()
         });
