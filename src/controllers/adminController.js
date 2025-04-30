@@ -562,8 +562,7 @@ exports.getRoleWithPermissions = async (req, res) => {
         console.error('Unexpected error:', error);
         res.status(500).json({
             success: false,
-            error: 'An unexpected error occurred',
-            timestamp: new Date().toISOString()
+            error: 'An unexpected error occurred'
         });
     }
 };
@@ -923,8 +922,7 @@ exports.updateRegistrationToPending = async (req, res) => {
  * Get comprehensive dashboard data for admin dashboard
  * 
  * This function aggregates data from multiple tables to provide a complete
- * overview of system metrics including entity counts, content metrics,
- * financial data, recent activities, and more.
+ * overview of system metrics including clients, quotations, entities, and more.
  * 
  * @param {object} req - Express request object
  * @param {object} res - Express response object
@@ -934,42 +932,275 @@ exports.getDashboardData = async (req, res) => {
     console.log('Executing: getDashboardData');
 
     try {
+        // Object to store all dashboard data
+        const dashboardData = {};
+
         // ===== Entity Counts =====
-        const { data: entityCounts, error: entityError } = await supabase.rpc('get_entity_counts');
+        // Fetch counts for each table
+        const tables = [
+            'clients',
+            'quotations',
+            'entities',
+            'bank_accounts',
+            'prospectus',
+            'roles',
+            'services',
+            'departments',
+            'registration',
+            'leads',
+            'transactions',
+            'journal_data'
+        ];
+
+        // Get counts for all tables
+        const counts = {};
         
-        if (entityError) {
-            console.error('Error fetching entity counts:', entityError);
-            return res.status(400).json({
-                success: false,
-                error: entityError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
+        // Using Promise.all to run all count queries concurrently
+        await Promise.all(tables.map(async (table) => {
+            // For tables that have is_deleted field, only count non-deleted records
+            const query = supabase.from(table).select('id', { count: 'exact', head: true });
+            
+            // Add is_deleted filter for tables that have this column
+            if (['entities', 'prospectus', 'registration', 'journal_data'].includes(table)) {
+                query.eq('is_deleted', false);
+            }
+            
+            const { count, error } = await query;
+            
+            if (error) {
+                console.error(`Error fetching ${table} count:`, error);
+                counts[table] = 0;
+            } else {
+                counts[table] = count;
+            }
+        }));
+        
+        dashboardData.counts = counts;
 
-        // ===== Content Metrics =====
-        // Get prospectus count
-        const { count: prospectusCount, error: prospectusError } = await supabase
+        // ===== Recent Data =====
+        // Get recent data from each table
+        const recentData = {};
+
+        // Get recent clients
+        const { data: recentClients, error: clientsError } = await supabase
+            .from('clients')
+            .select('id, client_name, email, phone_number')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!clientsError) recentData.clients = recentClients;
+
+        // Get recent quotations
+        const { data: recentQuotations, error: quotationsError } = await supabase
+            .from('quotations')
+            .select('id, quote_number, client_name, total_amount')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!quotationsError) recentData.quotations = recentQuotations;
+
+        // Get recent entities
+        const { data: recentEntities, error: entitiesError } = await supabase
+            .from('entities')
+            .select(`
+                id,
+                username,
+                email,
+                role_details:roles!role(name, entity_type),
+                created_at
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!entitiesError) recentData.entities = recentEntities;
+
+        // Get recent bank accounts
+        const { data: recentBankAccounts, error: bankAccountsError } = await supabase
+            .from('bank_accounts')
+            .select('id, account_name, account_number, bank_name')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!bankAccountsError) recentData.bankAccounts = recentBankAccounts;
+
+        // Get recent prospectus
+        const { data: recentProspectus, error: prospectusError } = await supabase
             .from('prospectus')
-            .select('id', { count: 'exact', head: true })
-            .eq('is_deleted', false);
+            .select(`
+                id,
+                client_name,
+                email,
+                phone,
+                requirement,
+                services
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!prospectusError) recentData.prospectus = recentProspectus;
 
-        if (prospectusError) {
-            console.error('Error fetching prospectus count:', prospectusError);
-            return res.status(400).json({
-                success: false,
-                error: prospectusError.message,
-                timestamp: new Date().toISOString()
-            });
+        // Get recent roles
+        const { data: recentRoles, error: rolesError } = await supabase
+            .from('roles')
+            .select('id, name, entity_type, description')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!rolesError) recentData.roles = recentRoles;
+
+        // Get recent services
+        const { data: recentServices, error: servicesError } = await supabase
+            .from('services')
+            .select('id, service_name, service_type, fee')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!servicesError) recentData.services = recentServices;
+
+        // Get recent departments
+        const { data: recentDepartments, error: departmentsError } = await supabase
+            .from('departments')
+            .select('id, name, description')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!departmentsError) recentData.departments = recentDepartments;
+
+        // Get recent registrations
+        const { data: recentRegistrations, error: registrationsError } = await supabase
+            .from('registration')
+            .select(`
+                id,
+                date,
+                services,
+                init_amount,
+                status
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!registrationsError) recentData.registrations = recentRegistrations;
+
+        // Get recent leads
+        const { data: recentLeads, error: leadsError } = await supabase
+            .from('leads')
+            .select(`
+                id,
+                date,
+                client_name,
+                phone_number,
+                requirement
+            `)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!leadsError) recentData.leads = recentLeads;
+
+        // Get recent transactions
+        const { data: recentTransactions, error: transactionsError } = await supabase
+            .from('transactions')
+            .select(`
+                id,
+                transaction_type,
+                amount,
+                transaction_date
+            `)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!transactionsError) recentData.transactions = recentTransactions;
+
+        // Get recent journals
+        const { data: recentJournals, error: journalsError } = await supabase
+            .from('journal_data')
+            .select(`
+                id,
+                title,
+                author_name,
+                status
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+            
+        if (!journalsError) recentData.journals = recentJournals;
+
+        dashboardData.recentData = recentData;
+
+        // ===== Financial Summary =====
+        // Get total revenue from transactions
+        const { data: totalRevenue, error: revenueError } = await supabase
+            .from('transactions')
+            .select('amount')
+            .eq('transaction_type', 'income');
+            
+        let revenue = 0;
+        if (!revenueError && totalRevenue) {
+            revenue = totalRevenue.reduce((sum, transaction) => {
+                return sum + (parseFloat(transaction.amount) || 0);
+            }, 0);
         }
 
-        // Get registration count
-        const { count: registrationCount, error: registrationError } = await supabase
+
+        // Return the compiled dashboard data
+        res.status(200).json({
+            success: true,
+            data: dashboardData,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('Error in getDashboardData:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get all financial data for admin dashboard (high payload)
+ * 
+ * NOTE: This function returns a large amount of data and may impact performance.
+ * Consider using the more targeted endpoints instead:
+ * - /financial-data/registrations
+ * - /financial-data/prospectuses
+ * - /financial-data/leads
+ * - /financial-data/transactions
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @returns {object} JSON with all financial data
+ */
+exports.getFinancialData = async (req, res) => {
+    console.log('Executing: getFinancialData');
+
+    try {
+        // Fetch registrations with related data
+        const { data: registrations, error: registrationError } = await supabase
             .from('registration')
-            .select('id', { count: 'exact', head: true })
-            .eq('is_deleted', false);
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    *,
+                    entity:entity_id(id, username, email),
+                    lead:leads_id(*)
+                ),
+                bank_account:bank_id(*),
+                transaction:transaction_id(*),
+                assigned_entity:assigned_to(id, username, email),
+                registered_entity:registered_by(id, username, email),
+                client:client_id(*)
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false });
 
         if (registrationError) {
-            console.error('Error fetching registration count:', registrationError);
+            console.error('Error fetching registrations:', registrationError);
             return res.status(400).json({
                 success: false,
                 error: registrationError.message,
@@ -977,28 +1208,38 @@ exports.getDashboardData = async (req, res) => {
             });
         }
 
-        // Get journal count
-        const { count: journalCount, error: journalError } = await supabase
-            .from('journal_data')
-            .select('id', { count: 'exact', head: true })
-            .eq('is_deleted', false);
+        // Fetch all prospectus data
+        const { data: prospectuses, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select(`
+                *,
+                entity:entity_id(id, username, email),
+                lead:leads_id(*)
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false });
 
-        if (journalError) {
-            console.error('Error fetching journal count:', journalError);
+        if (prospectusError) {
+            console.error('Error fetching prospectuses:', prospectusError);
             return res.status(400).json({
                 success: false,
-                error: journalError.message,
+                error: prospectusError.message,
                 timestamp: new Date().toISOString()
             });
         }
 
-        // Get leads count
-        const { count: leadsCount, error: leadsError } = await supabase
+        // Fetch all leads data - Fixed relationship ambiguity
+        const { data: leads, error: leadsError } = await supabase
             .from('leads')
-            .select('id', { count: 'exact', head: true });
+            .select(`
+                *,
+                creator:entities!fk_lead_created(id, username, email),
+                assignee:assigned_to(id, username, email)
+            `)
+            .order('created_at', { ascending: false });
 
         if (leadsError) {
-            console.error('Error fetching leads count:', leadsError);
+            console.error('Error fetching leads:', leadsError);
             return res.status(400).json({
                 success: false,
                 error: leadsError.message,
@@ -1006,190 +1247,139 @@ exports.getDashboardData = async (req, res) => {
             });
         }
 
-        // ===== Financial Metrics =====
-        // Get total revenue and average transaction value
-        const { data: financialMetrics, error: financialError } = await supabase.rpc('get_financial_metrics');
-        
-        if (financialError) {
-            console.error('Error fetching financial metrics:', financialError);
-            return res.status(400).json({
-                success: false,
-                error: financialError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // Get recent transactions - update to filter out deleted transactions
-        const { data: recentTransactions, error: transactionError } = await supabase
+        // Fetch all transactions
+        const { data: transactions, error: transactionsError } = await supabase
             .from('transactions')
             .select(`
-                id,
-                transaction_type,
-                amount,
-                transaction_date,
-                entities:entity_id(id, username)
+                *,
+                entity:entity_id(id, username, email)
             `)
-            .eq('is_deleted', false) // Only include non-deleted transactions
-            .order('transaction_date', { ascending: false })
-            .limit(5);
-
-        if (transactionError) {
-            console.error('Error fetching recent transactions:', transactionError);
-            return res.status(400).json({
-                success: false,
-                error: transactionError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // Get pending amount from registrations (sum of init_amount where status is pending)
-        const { data: pendingData, error: pendingError } = await supabase
-            .from('registration')
-            .select('init_amount')
-            .eq('status', 'pending')
             .eq('is_deleted', false);
 
-        if (pendingError) {
-            console.error('Error fetching pending amounts:', pendingError);
+        if (transactionsError) {
+            console.error('Error fetching transactions:', transactionsError);
             return res.status(400).json({
                 success: false,
-                error: pendingError.message,
+                error: transactionsError.message,
                 timestamp: new Date().toISOString()
             });
         }
 
-        const pendingAmount = pendingData.reduce((sum, registration) => {
-            return sum + (parseFloat(registration.init_amount) || 0);
-        }, 0);
-
-        // ===== Recent Activities =====
-        // Get recent executives (entities with executive role)
-        const { data: recentExecutives, error: executivesError } = await supabase
-            .from('entities')
-            .select(`
-                id,
-                username,
-                role_details:roles!role(name, entity_type),
-                created_at
-            `)
-            .eq('is_deleted', false)
-            .order('created_at', { ascending: false })
-            .limit(5);
-
-        if (executivesError) {
-            console.error('Error fetching recent executives:', executivesError);
-            return res.status(400).json({
-                success: false,
-                error: executivesError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // Get recent services
-        const { data: recentServices, error: servicesError } = await supabase
-            .from('services')
-            .select('id, service_name, fee')
-            .order('updated_at', { ascending: false })
-            .limit(5);
-
-        if (servicesError) {
-            console.error('Error fetching recent services:', servicesError);
-            return res.status(400).json({
-                success: false,
-                error: servicesError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // ===== Journal Metrics =====
-        // Get journal status distribution
-        const { data: journalMetrics, error: journalMetricsError } = await supabase.rpc('get_journal_status_distribution');
-        
-        if (journalMetricsError) {
-            console.error('Error fetching journal metrics:', journalMetricsError);
-            return res.status(400).json({
-                success: false,
-                error: journalMetricsError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // ===== Service Metrics =====
-        // Get total services count
-        const { count: servicesCount, error: serviceCountError } = await supabase
-            .from('services')
-            .select('id', { count: 'exact', head: true });
-
-        if (serviceCountError) {
-            console.error('Error fetching services count:', serviceCountError);
-            return res.status(400).json({
-                success: false,
-                error: serviceCountError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // Get top services (most used in registrations)
-        const { data: topServices, error: topServicesError } = await supabase.rpc('get_top_services');
-        
-        if (topServicesError) {
-            console.error('Error fetching top services:', topServicesError);
-            return res.status(400).json({
-                success: false,
-                error: topServicesError.message,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        // ===== Compile All Data =====
-        const dashboardData = {
-            entityCounts: entityCounts || {
-                total: 0,
-                executive: 0,
-                editor: 0,
-                author: 0,
-                admin: 0,
-                other: 0
-            },
-            contentMetrics: {
-                prospectus: prospectusCount || 0,
-                registrations: registrationCount || 0,
-                journals: journalCount || 0,
-                leads: leadsCount || 0
-            },
-            financialMetrics: {
-                totalRevenue: financialMetrics?.total_revenue || 0,
-                averageTransactionValue: financialMetrics?.average_transaction_value || 0,
-                pendingAmount: pendingAmount || 0,
-                recentTransactions: recentTransactions || []
-            },
-            recentActivities: {
-                recentExecutives: recentExecutives || [],
-                recentServices: recentServices || []
-            },
-            journalMetrics: {
-                total: journalMetrics?.total || 0,
-                statusDistribution: {
-                    pending: journalMetrics?.pending || 0,
-                    under_review: journalMetrics?.under_review || 0,
-                    approved: journalMetrics?.approved || 0,
-                    rejected: journalMetrics?.rejected || 0,
-                    submitted: journalMetrics?.submitted || 0
-                }
-            },
-            serviceMetrics: {
-                total: servicesCount || 0,
-                topServices: topServices || []
-            }
+        // Compile all data
+        const financialData = {
+            registrations,
+            prospectuses,
+            leads,
+            transactions
         };
 
         res.status(200).json({
             success: true,
-            data: dashboardData,
+            data: financialData,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error in getDashboardData:', error);
+        console.error('Error in getFinancialData:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get registrations data for financial overview
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @returns {object} JSON with registrations data
+ */
+exports.getRegistrationsFinancialData = async (req, res) => {
+    console.log('Executing: getRegistrationsFinancialData');
+
+    try {
+        // Fetch registrations with related data
+        const { data: registrations, error: registrationError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    *,
+                    entity:entity_id(id, username, email),
+                    lead:leads_id(*)
+                ),
+                bank_account:bank_id(*),
+                transaction:transaction_id(*),
+                assigned_entity:assigned_to(id, username, email),
+                registered_entity:registered_by(id, username, email),
+                client:client_id(*)
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false });
+
+        if (registrationError) {
+            console.error('Error fetching registrations:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Extract secondary_payment and final_payment IDs
+        const secondaryPaymentIds = registrations
+            .filter(reg => reg.secondary_payment)
+            .map(reg => reg.secondary_payment);
+            
+        const finalPaymentIds = registrations
+            .filter(reg => reg.final_payment)
+            .map(reg => reg.final_payment);
+            
+        // Combine all payment transaction IDs
+        const paymentTransactionIds = [...new Set([...secondaryPaymentIds, ...finalPaymentIds])];
+        
+        // If there are payment IDs to fetch
+        let paymentTransactionsMap = {};
+        if (paymentTransactionIds.length > 0) {
+            const { data: paymentTransactions, error: transactionError } = await supabase
+                .from('transactions')
+                .select('*')
+                .in('id', paymentTransactionIds);
+                
+            if (transactionError) {
+                console.error('Error fetching payment transactions:', transactionError);
+            } else if (paymentTransactions) {
+                // Create a map for quick lookup
+                paymentTransactionsMap = paymentTransactions.reduce((map, transaction) => {
+                    map[transaction.id] = transaction;
+                    return map;
+                }, {});
+            }
+        }
+        
+        // Add the payment transaction data to each registration
+        const registrationsWithPayments = registrations.map(registration => {
+            const enhancedRegistration = { ...registration };
+            
+            if (registration.secondary_payment && paymentTransactionsMap[registration.secondary_payment]) {
+                enhancedRegistration.secondary_payment_details = paymentTransactionsMap[registration.secondary_payment];
+            }
+            
+            if (registration.final_payment && paymentTransactionsMap[registration.final_payment]) {
+                enhancedRegistration.final_payment_details = paymentTransactionsMap[registration.final_payment];
+            }
+            
+            return enhancedRegistration;
+        });
+
+        res.status(200).json({
+            success: true,
+            data: registrationsWithPayments,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getRegistrationsFinancialData:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',

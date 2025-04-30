@@ -16,6 +16,11 @@ const {
     assignRegistration,
     updateRegistrationToPending,
     getDashboardData,
+    getFinancialData,
+    getRegistrationsFinancialData,
+    getProspectusFinancialData,
+    getLeadsFinancialData,
+    getTransactionsFinancialData,
 } = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 
@@ -25,8 +30,12 @@ const router = express.Router();
 router.post('/login', loginAdmin);
 router.post('/create', createAdmin);
 
-// Dashboard route
-router.get('/dashboard', auth, getDashboardData);
+// Dashboard routes
+router.get('/dashboard', getDashboardData);
+
+// Financial Data routes (split into smaller chunks)
+router.get('/financial-data', getFinancialData); // Original route (returns large payload)
+router.get('/financial-data/registrations', getRegistrationsFinancialData);
 
 // Protected Service routes
 router.post('/services/create', auth, createService);
