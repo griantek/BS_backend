@@ -535,6 +535,7 @@ exports.createTransaction = async (req, res) => {
                 transaction_date,
                 additional_info,
                 entity_id
+                // is_deleted is handled by the database default constraint
             }])
             .select()
             .single();
@@ -576,6 +577,7 @@ exports.getAllTransactions = async (req, res) => {
                     username
                 )
             `)
+            .eq('is_deleted', false) // Only fetch non-deleted transactions
             .order('transaction_date', { ascending: false });
 
         if (error) {
@@ -640,6 +642,7 @@ exports.getAllRegistrations = async (req, res) => {
                     entity_id
                 )
             `)
+            .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 
         if (registrationError) {
@@ -661,6 +664,8 @@ exports.getAllRegistrations = async (req, res) => {
                 prospectus_id: reg.prospectus_id,
                 services: reg.services,
                 init_amount: reg.init_amount,
+                secondary_payment: reg.secondary_payment,
+                final_payment: reg.final_payment,
                 accept_amount: reg.accept_amount,
                 discount: reg.discount,
                 total_amount: reg.total_amount,
@@ -676,7 +681,7 @@ exports.getAllRegistrations = async (req, res) => {
                 // Related data
                 prospectus: reg.prospectus,
                 bank_account: reg.bank_accounts,
-                assigned_executive:reg.assigned_executive,
+                assigned_executive: reg.assigned_executive,
                 transaction: reg.transactions
             }))
         };
@@ -701,15 +706,21 @@ exports.getRegistrationById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        const { data, error } = await supabase
+        // Fetch registration with primary transaction
+        const { data: registration, error } = await supabase
             .from('registration')
             .select(`
             *,
-            prospectus:prospectus_id(*),
+            prospectus:prospectus_id(
+                *,
+                leads:leads_id(*)
+            ),
             bank_accounts:bank_id(*),
-            transactions(*)
+            transactions!inner(*)
             `)
             .eq('id', id)
+            .eq('is_deleted', false)
+            .eq('transactions.is_deleted', false)
             .single();
 
         if (error) {
@@ -721,7 +732,7 @@ exports.getRegistrationById = async (req, res) => {
             });
         }
 
-        if (!data) {
+        if (!registration) {
             return res.status(404).json({
                 success: false,
                 error: 'Registration not found',
@@ -729,9 +740,44 @@ exports.getRegistrationById = async (req, res) => {
             });
         }
 
+        // Prepare response data
+        const responseData = { ...registration };
+
+        // Fetch secondary payment transaction if exists
+        if (registration.secondary_payment) {
+            const { data: secondaryTransaction, error: secondaryError } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('id', registration.secondary_payment)
+                .eq('is_deleted', false)
+                .single();
+
+            if (secondaryError) {
+                console.log('Error fetching secondary payment transaction:', secondaryError);
+            } else if (secondaryTransaction) {
+                responseData.secondary_transaction = secondaryTransaction;
+            }
+        }
+
+        // Fetch final payment transaction if exists
+        if (registration.final_payment) {
+            const { data: finalTransaction, error: finalError } = await supabase
+                .from('transactions')
+                .select('*')
+                .eq('id', registration.final_payment)
+                .eq('is_deleted', false)
+                .single();
+
+            if (finalError) {
+                console.log('Error fetching final payment transaction:', finalError);
+            } else if (finalTransaction) {
+                responseData.final_transaction = finalTransaction;
+            }
+        }
+
         res.status(200).json({
             success: true,
-            data,
+            data: responseData,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -764,14 +810,14 @@ exports.createRegistration = async (req, res) => {
         total_amount,
         accept_period,
         pub_period,
-        assigned_to,
         bank_id,
         status,
         month,
         year,
         notes,
         registered_by,
-        client_id
+        client_id,
+        service_and_prices
     } = req.body;
 
     try {
@@ -814,14 +860,16 @@ exports.createRegistration = async (req, res) => {
                 status,
                 month,
                 year,
-                assigned_to,
                 transaction_id: transactionData.id,
                 notes,
                 registered_by,
-                client_id
+                client_id,
+                author_status: 'not started', // Other status are in_progress, completed, submitted, revised
+                service_and_prices,
             }])
             .select()
             .single();
+
 
         if (registrationError) {
             console.log('Error creating registration:', registrationError);
@@ -873,18 +921,19 @@ exports.updateRegistration = async (req, res) => {
     const { id } = req.params;
 
     try {
-        // First get the current registration to get the transaction_id
+        // First get the current registration to get the transaction IDs
         const { data: currentRegistration, error: fetchError } = await supabase
             .from('registration')
-            .select('transaction_id')
+            .select('transaction_id, secondary_payment, final_payment')
             .eq('id', id)
+            .eq('is_deleted', false)
             .single();
 
         if (fetchError || !currentRegistration) {
             console.log('Error fetching registration:', fetchError);
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found',
+                error: 'Registration not found or has been deleted',
                 timestamp: new Date().toISOString()
             });
         }
@@ -904,13 +953,17 @@ exports.updateRegistration = async (req, res) => {
             month,
             year,
 
-            // Transaction details
+            // Primary transaction details
             transaction_type,
             transaction_id: external_transaction_id,
             amount,
             transaction_date,
             additional_info,
-            entity_id
+            entity_id,
+            
+            // Secondary and final payment data
+            secondary_payment_data,
+            final_payment_data
         } = req.body;
 
         // Update registration data
@@ -943,7 +996,7 @@ exports.updateRegistration = async (req, res) => {
             });
         }
 
-        // Update transaction data
+        // Update primary transaction data
         const { data: transactionData, error: transactionError } = await supabase
             .from('transactions')
             .update({
@@ -968,16 +1021,138 @@ exports.updateRegistration = async (req, res) => {
             });
         }
 
+        // Track all transaction updates
+        const transactionUpdates = {
+            primary: transactionData
+        };
+
+        // Update secondary payment transaction if it exists and data is provided
+        if (secondary_payment_data && currentRegistration.secondary_payment) {
+            const { data: secondaryTransactionData, error: secondaryTransactionError } = await supabase
+                .from('transactions')
+                .update({
+                    transaction_type: secondary_payment_data.transaction_type,
+                    transaction_id: secondary_payment_data.transaction_id,
+                    amount: parseFloat(secondary_payment_data.amount || 0),
+                    transaction_date: secondary_payment_data.transaction_date,
+                    additional_info: secondary_payment_data.additional_info,
+                    entity_id: secondary_payment_data.entity_id || entity_id, // Use primary entity_id as fallback
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentRegistration.secondary_payment)
+                .select()
+                .single();
+
+            if (secondaryTransactionError) {
+                console.log('Error updating secondary transaction:', secondaryTransactionError);
+            } else {
+                transactionUpdates.secondary = secondaryTransactionData;
+            }
+        }
+
+        // Update final payment transaction if it exists and data is provided
+        if (final_payment_data && currentRegistration.final_payment) {
+            const { data: finalTransactionData, error: finalTransactionError } = await supabase
+                .from('transactions')
+                .update({
+                    transaction_type: final_payment_data.transaction_type,
+                    transaction_id: final_payment_data.transaction_id,
+                    amount: parseFloat(final_payment_data.amount || 0),
+                    transaction_date: final_payment_data.transaction_date,
+                    additional_info: final_payment_data.additional_info,
+                    entity_id: final_payment_data.entity_id || entity_id, // Use primary entity_id as fallback
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentRegistration.final_payment)
+                .select()
+                .single();
+
+            if (finalTransactionError) {
+                console.log('Error updating final transaction:', finalTransactionError);
+            } else {
+                transactionUpdates.final = finalTransactionData;
+            }
+        }
+
         res.status(200).json({
             success: true,
             data: {
                 registration: registrationData,
-                transaction: transactionData
+                transactions: transactionUpdates
             },
             timestamp: new Date().toISOString()
         });
     } catch (error) {
         console.error('Error in updateRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.updateRegistrationInvoice = async (req, res) => {
+    console.log('Executing: updateRegistrationInvoice');
+    const { id } = req.params;
+    const {
+        init_amount,
+        accept_amount,
+        discount,
+        total_amount,
+        bank_id,
+        service_and_prices
+    } = req.body;
+
+    try {
+        // Check if registration exists
+        const { data: existingRegistration, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', id)
+            .single();
+
+        if (checkError || !existingRegistration) {
+            console.log('Error finding registration:', checkError);
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update registration invoice details
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                init_amount,
+                accept_amount,
+                discount,
+                total_amount,
+                bank_id,
+                service_and_prices,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error updating registration invoice:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in updateRegistrationInvoice:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',
@@ -996,50 +1171,29 @@ exports.deleteRegistration = async (req, res) => {
             .from('registration')
             .select('transaction_id, prospectus_id')
             .eq('id', id)
+            .eq('is_deleted', false)
             .single();
 
-        if (fetchError) {
+        if (fetchError || !registration) {
             console.log('Error fetching registration:', fetchError);
-            return res.status(400).json({
-                success: false,
-                error: 'Error fetching registration details',
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        if (!registration) {
             return res.status(404).json({
                 success: false,
-                error: 'Registration not found',
+                error: 'Registration not found or has been deleted',
                 timestamp: new Date().toISOString()
             });
         }
 
-        // Delete the transaction first
-        if (registration.transaction_id) {
-            const { error: transactionError } = await supabase
-                .from('transactions')
-                .delete()
-                .eq('id', registration.transaction_id);
-
-            if (transactionError) {
-                console.log('Error deleting transaction:', transactionError);
-                return res.status(400).json({
-                    success: false,
-                    error: 'Error deleting associated transaction',
-                    timestamp: new Date().toISOString()
-                });
-            }
-        }
-
-        // Then delete the registration
+        // Soft delete the registration
         const { error: registrationError } = await supabase
             .from('registration')
-            .delete()
+            .update({
+                is_deleted: true,
+                deleted_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (registrationError) {
-            console.log('Error deleting registration:', registrationError);
+            console.log('Error soft-deleting registration:', registrationError);
             return res.status(400).json({
                 success: false,
                 error: registrationError.message,
@@ -1047,22 +1201,25 @@ exports.deleteRegistration = async (req, res) => {
             });
         }
 
-        // Reset the prospectus isregistered status
-        if (registration.prospectus_id) {
-            const { error: prospectusError } = await supabase
-                .from('prospectus')
-                .update({ isregistered: false })
-                .eq('id', registration.prospectus_id);
+        // Also soft delete the associated transaction if it exists
+        if (registration.transaction_id) {
+            const { error: transactionError } = await supabase
+                .from('transactions')
+                .update({
+                    is_deleted: true,
+                    deleted_at: new Date().toISOString()
+                })
+                .eq('id', registration.transaction_id);
 
-            if (prospectusError) {
-                console.log('Error updating prospectus:', prospectusError);
-                // Don't fail the request if this update fails
+            if (transactionError) {
+                console.log('Error soft-deleting transaction:', transactionError);
+                // Continue even if transaction deletion fails
             }
         }
 
         res.status(200).json({
             success: true,
-            message: 'Registration and associated transaction deleted successfully',
+            message: 'Registration and associated transaction soft-deleted successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -1103,7 +1260,7 @@ exports.approveRegistration = async (req, res) => {
         const { data: registrationData, error: registrationError } = await supabase
             .from('registration')
             .update({
-                status: 'registered',
+                status: 'waiting for approval',
                 assigned_to: req.body.assigned_to || null  // Add this line
             })
             .eq('id', id)
@@ -1370,6 +1527,228 @@ exports.deleteDepartment = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in deleteDepartment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+//====================================
+// Password Decryption
+//====================================
+exports.decryptPassword = async (req, res) => {
+    console.log('Executing: decryptPassword');
+    const { encryptedPassword } = req.body;
+
+    try {
+        if (!encryptedPassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Encrypted password is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const { decryptText } = require('../utils/encryption');
+        const decryptedPassword = decryptText(encryptedPassword);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                decryptedPassword
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error decrypting password:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+//====================================
+// Secondary and Final Payment Transactions
+//====================================
+exports.addSecondaryPaymentTransaction = async (req, res) => {
+    console.log('Executing: addSecondaryPaymentTransaction');
+    const {
+        registration_id,
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        entity_id
+    } = req.body;
+
+    try {
+        if (!registration_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Registration ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // First, create the transaction
+        const { data: transactionData, error: transactionError } = await supabase
+            .from('transactions')
+            .insert([{
+                transaction_type,
+                transaction_id: external_transaction_id,
+                amount: amount || 0,
+                transaction_date,
+                additional_info,
+                entity_id
+            }])
+            .select()
+            .single();
+
+        if (transactionError) {
+            console.log('Error creating secondary payment transaction:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration with the secondary payment transaction ID
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .update({
+                secondary_payment: transactionData.id,
+                is_secondary_payment_done: true,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registration_id)
+            .select()
+            .single();
+
+        if (registrationError) {
+            console.log('Error updating registration with secondary payment:', registrationError);
+            // Rollback the transaction if the registration update fails
+            await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', transactionData.id);
+
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                registration: registrationData,
+                transaction: transactionData
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in addSecondaryPaymentTransaction:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.addFinalPaymentTransaction = async (req, res) => {
+    console.log('Executing: addFinalPaymentTransaction');
+    const {
+        registration_id,
+        transaction_type,
+        transaction_id: external_transaction_id,
+        amount,
+        transaction_date,
+        additional_info,
+        entity_id
+    } = req.body;
+
+    try {
+        if (!registration_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Registration ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // First, create the transaction
+        const { data: transactionData, error: transactionError } = await supabase
+            .from('transactions')
+            .insert([{
+                transaction_type,
+                transaction_id: external_transaction_id,
+                amount: amount || 0,
+                transaction_date,
+                additional_info,
+                entity_id
+            }])
+            .select()
+            .single();
+
+        if (transactionError) {
+            console.log('Error creating final payment transaction:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration with the final payment transaction ID
+        const { data: registrationData, error: registrationError } = await supabase
+            .from('registration')
+            .update({
+                final_payment: transactionData.id,
+                is_final_payment_done: true,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registration_id)
+            .select()
+            .single();
+
+        if (registrationError) {
+            console.log('Error updating registration with final payment:', registrationError);
+            // Rollback the transaction if the registration update fails
+            await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', transactionData.id);
+
+            console.log({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                registration: registrationData,
+                transaction: transactionData
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in addFinalPaymentTransaction:', error);
         res.status(500).json({
             success: false,
             error: 'An unexpected error occurred',

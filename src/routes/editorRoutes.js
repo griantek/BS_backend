@@ -8,7 +8,11 @@ const {
     deleteJournalData,
     triggerStatusUpload,
     getAssignedRegistrations,
-    getProspectusAssistData
+    getProspectusAssistData,
+    getJournalDataByEditor,
+    getJournalDataByEmail,
+    getJournalDataByAssignedEditor,
+    updateJournalStatus // Add this import
 } = require('../controllers/editorController');
 const auth = require('../middleware/auth');
 
@@ -18,11 +22,17 @@ const router = express.Router();
 router.post('/login', loginEditor);
 
 // Journal Data routes
-router.get('/journal-data/all',  getAllJournalData);
+router.get('/journal-data/all', auth,  getAllJournalData);
 router.get('/journal-data/:id', auth, getJournalDataById);
+router.get('/journal-data/editor/:editorId', auth, getJournalDataByEditor);
+router.get('/journal-data/email/:email', auth, getJournalDataByEmail);
+router.get('/journal-data/assigned/:editorId', auth, getJournalDataByAssignedEditor);
 router.post('/journal-data/create', auth, createJournalData);
 router.put('/journal-data/:id', auth, updateJournalData);
 router.delete('/journal-data/:id', auth, deleteJournalData);
+
+// Add the new route for updating just the status
+router.put('/journal-data/:id/status', auth, updateJournalStatus);
 
 // Status Upload route
 router.post('/trigger-status-upload', auth, triggerStatusUpload);

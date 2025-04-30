@@ -22,7 +22,11 @@ const {
     createBankAccount,
     updateBankAccount,
     deleteBankAccount,
-    approveRegistration
+    approveRegistration,
+    decryptPassword,
+    updateRegistrationInvoice,
+    addSecondaryPaymentTransaction,
+    addFinalPaymentTransaction
 } = require('../controllers/commonController');
 const auth = require('../middleware/auth');
 
@@ -48,11 +52,15 @@ router.get('/registration/:id', auth, getRegistrationById);
 router.post('/registration/create', auth, createRegistration);
 router.delete('/registration/:id', auth, deleteRegistration);
 router.put('/registration/:id', auth, updateRegistration);
-router.put('/registration/approve/:id', auth, approveRegistration); // Add this new route
+router.put('/registration/approve/:id', auth, approveRegistration);
+router.put('/registration/invoice/:id', auth, updateRegistrationInvoice);
 
 // Transaction routes
 router.get('/transactions/all', auth, getAllTransactions);
 router.post('/transactions/create', auth, createTransaction);
+router.post('/transaction', auth, createTransaction);
+router.post('/transaction/secondary-payment', auth, addSecondaryPaymentTransaction);
+router.post('/transaction/final-payment', auth, addFinalPaymentTransaction);
 
 // Department routes
 router.get('/departments/all', auth, getAllDepartments);
@@ -60,5 +68,8 @@ router.get('/departments/:id', auth, getDepartmentById);
 router.post('/departments/create', auth, createDepartment);
 router.put('/departments/:id', auth, updateDepartment);
 router.delete('/departments/:id', auth, deleteDepartment);
+
+// Password decryption route
+router.post('/decrypt-password',auth, decryptPassword);
 
 module.exports = router;

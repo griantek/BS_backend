@@ -637,3 +637,563 @@ exports.getPermissionsByEntityType = async (req, res) => {
         });
     }
 };
+
+//====================================
+// Registration Management
+//====================================
+
+exports.getRegistrationForApproval = async (req, res) => {
+    try {
+        console.log('Executing: approveRegistration');
+
+        // Fetch all registration entries where admin_assigned is false
+        const { data: registrations, error: regError } = await supabase
+            .from('registration')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    *,
+                    leads:leads_id(*),
+                    entities:entity_id(id, username, email)
+                ),
+                registered_by_details:registered_by(id, username, email),
+                bank_details:bank_id(*),
+                transaction_details:transaction_id(*)
+            `)
+            .eq('admin_assigned', false)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false });
+
+        if (regError) {
+            console.log('Error fetching registrations:', regError);
+            return res.status(400).json({
+                success: false,
+                error: regError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Process and format the data
+        const formattedData = registrations.map(reg => {
+            return {
+                registration: {
+                    id: reg.id,
+                    date: reg.date,
+                    services: reg.services,
+                    initialAmount: reg.init_amount,
+                    secondary_payment: reg.secondary_payment,
+                    final_payment: reg.final_payment,
+                    acceptedAmount: reg.accept_amount,
+                    discount: reg.discount,
+                    totalAmount: reg.total_amount,
+                    acceptPeriod: reg.accept_period,
+                    pubPeriod: reg.pub_period,
+                    status: reg.status,
+                    month: reg.month,
+                    year: reg.year,
+                    notes: reg.notes,
+                    createdAt: reg.created_at,
+                    updatedAt: reg.updated_at,
+                    adminAssigned: reg.admin_assigned
+                },
+                prospectus: reg.prospectus ? {
+                    id: reg.prospectus.id,
+                    regId: reg.prospectus.reg_id,
+                    clientName: reg.prospectus.client_name,
+                    email: reg.prospectus.email,
+                    phone: reg.prospectus.phone,
+                    department: reg.prospectus.department,
+                    state: reg.prospectus.state,
+                    techPerson: reg.prospectus.tech_person,
+                    requirement: reg.prospectus.requirement,
+                    services: reg.prospectus.services,
+                    proposedServicePeriod: reg.prospectus.proposed_service_period,
+                    notes: reg.prospectus.notes,
+                    nextFollowUp: reg.prospectus.next_follow_up,
+                    createdBy: reg.prospectus.entities ? {
+                        id: reg.prospectus.entities.id,
+                        username: reg.prospectus.entities.username,
+                        email: reg.prospectus.entities.email
+                    } : null
+                } : null,
+                leads: reg.prospectus?.leads ? {
+                    id: reg.prospectus.leads.id,
+                    date: reg.prospectus.leads.date,
+                    leadSource: reg.prospectus.leads.lead_source,
+                    clientName: reg.prospectus.leads.client_name,
+                    phoneNumber: reg.prospectus.leads.phone_number,
+                    domain: reg.prospectus.leads.domain,
+                    researchArea: reg.prospectus.leads.research_area,
+                    title: reg.prospectus.leads.title,
+                    degree: reg.prospectus.leads.degree,
+                    university: reg.prospectus.leads.university,
+                    state: reg.prospectus.leads.state,
+                    country: reg.prospectus.leads.country,
+                    requirement: reg.prospectus.leads.requirement,
+                    detailedRequirement: reg.prospectus.leads.detailed_requirement,
+                    prospectusType: reg.prospectus.leads.prospectus_type,
+                    followupDate: reg.prospectus.leads.followup_date,
+                    remarks: reg.prospectus.leads.remarks,
+                    followupStatus: reg.prospectus.leads.followup_status,
+                    createdAt: reg.prospectus.leads.created_at,
+                    updatedAt: reg.prospectus.leads.updated_at
+                } : null,
+                registeredBy: reg.registered_by_details ? {
+                    id: reg.registered_by_details.id,
+                    username: reg.registered_by_details.username,
+                    email: reg.registered_by_details.email
+                } : null,
+                bankDetails: reg.bank_details || null,
+                transactionDetails: reg.transaction_details || null
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            data: formattedData,
+            count: formattedData.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in approveRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.assignRegistration = async (req, res) => {
+    try {
+        console.log('Executing: assignRegistration');
+        const { registrationId } = req.params;
+        const { assigned_to } = req.body;
+
+        // Validate required fields
+        if (!assigned_to) {
+            return res.status(400).json({
+                success: false,
+                error: 'assigned_to field is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Check if the registration exists and is not deleted
+        const { data: existingReg, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', registrationId)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingReg) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update the registration record
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                assigned_to,
+                admin_assigned: true,
+                status: 'registered',
+                registration_date: new Date().toISOString(), // Add registration date when status becomes 'registered'
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registrationId)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error assigning registration:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Registration assigned successfully',
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in assignRegistration:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Update registration status to 'pending'
+ * 
+ * This function changes only the status field of a registration record to 'pending'
+ * without modifying any other fields.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} req.params - Request parameters
+ * @param {string} req.params.registrationId - ID of the registration to update
+ * @param {object} res - Express response object
+ * @returns {object} JSON response with updated registration data or error
+ */
+exports.updateRegistrationToPending = async (req, res) => {
+    try {
+        console.log('Executing: updateRegistrationToPending');
+        const { registrationId } = req.params;
+
+        // Check if the registration exists and is not deleted
+        const { data: existingReg, error: checkError } = await supabase
+            .from('registration')
+            .select('id')
+            .eq('id', registrationId)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingReg) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update only the status field to 'pending'
+        const { data, error } = await supabase
+            .from('registration')
+            .update({
+                status: 'pending',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', registrationId)
+            .select()
+            .single();
+
+        if (error) {
+            console.log('Error updating registration status:', error);
+            return res.status(400).json({
+                success: false,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Registration not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Registration status updated to pending',
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in updateRegistrationToPending:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Get comprehensive dashboard data for admin dashboard
+ * 
+ * This function aggregates data from multiple tables to provide a complete
+ * overview of system metrics including entity counts, content metrics,
+ * financial data, recent activities, and more.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @returns {object} JSON with dashboard metrics
+ */
+exports.getDashboardData = async (req, res) => {
+    console.log('Executing: getDashboardData');
+
+    try {
+        // ===== Entity Counts =====
+        const { data: entityCounts, error: entityError } = await supabase.rpc('get_entity_counts');
+        
+        if (entityError) {
+            console.error('Error fetching entity counts:', entityError);
+            return res.status(400).json({
+                success: false,
+                error: entityError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Content Metrics =====
+        // Get prospectus count
+        const { count: prospectusCount, error: prospectusError } = await supabase
+            .from('prospectus')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (prospectusError) {
+            console.error('Error fetching prospectus count:', prospectusError);
+            return res.status(400).json({
+                success: false,
+                error: prospectusError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get registration count
+        const { count: registrationCount, error: registrationError } = await supabase
+            .from('registration')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (registrationError) {
+            console.error('Error fetching registration count:', registrationError);
+            return res.status(400).json({
+                success: false,
+                error: registrationError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get journal count
+        const { count: journalCount, error: journalError } = await supabase
+            .from('journal_data')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_deleted', false);
+
+        if (journalError) {
+            console.error('Error fetching journal count:', journalError);
+            return res.status(400).json({
+                success: false,
+                error: journalError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get leads count
+        const { count: leadsCount, error: leadsError } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true });
+
+        if (leadsError) {
+            console.error('Error fetching leads count:', leadsError);
+            return res.status(400).json({
+                success: false,
+                error: leadsError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Financial Metrics =====
+        // Get total revenue and average transaction value
+        const { data: financialMetrics, error: financialError } = await supabase.rpc('get_financial_metrics');
+        
+        if (financialError) {
+            console.error('Error fetching financial metrics:', financialError);
+            return res.status(400).json({
+                success: false,
+                error: financialError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get recent transactions - update to filter out deleted transactions
+        const { data: recentTransactions, error: transactionError } = await supabase
+            .from('transactions')
+            .select(`
+                id,
+                transaction_type,
+                amount,
+                transaction_date,
+                entities:entity_id(id, username)
+            `)
+            .eq('is_deleted', false) // Only include non-deleted transactions
+            .order('transaction_date', { ascending: false })
+            .limit(5);
+
+        if (transactionError) {
+            console.error('Error fetching recent transactions:', transactionError);
+            return res.status(400).json({
+                success: false,
+                error: transactionError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get pending amount from registrations (sum of init_amount where status is pending)
+        const { data: pendingData, error: pendingError } = await supabase
+            .from('registration')
+            .select('init_amount')
+            .eq('status', 'pending')
+            .eq('is_deleted', false);
+
+        if (pendingError) {
+            console.error('Error fetching pending amounts:', pendingError);
+            return res.status(400).json({
+                success: false,
+                error: pendingError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const pendingAmount = pendingData.reduce((sum, registration) => {
+            return sum + (parseFloat(registration.init_amount) || 0);
+        }, 0);
+
+        // ===== Recent Activities =====
+        // Get recent executives (entities with executive role)
+        const { data: recentExecutives, error: executivesError } = await supabase
+            .from('entities')
+            .select(`
+                id,
+                username,
+                role_details:roles!role(name, entity_type),
+                created_at
+            `)
+            .eq('is_deleted', false)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (executivesError) {
+            console.error('Error fetching recent executives:', executivesError);
+            return res.status(400).json({
+                success: false,
+                error: executivesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get recent services
+        const { data: recentServices, error: servicesError } = await supabase
+            .from('services')
+            .select('id, service_name, fee')
+            .order('updated_at', { ascending: false })
+            .limit(5);
+
+        if (servicesError) {
+            console.error('Error fetching recent services:', servicesError);
+            return res.status(400).json({
+                success: false,
+                error: servicesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Journal Metrics =====
+        // Get journal status distribution
+        const { data: journalMetrics, error: journalMetricsError } = await supabase.rpc('get_journal_status_distribution');
+        
+        if (journalMetricsError) {
+            console.error('Error fetching journal metrics:', journalMetricsError);
+            return res.status(400).json({
+                success: false,
+                error: journalMetricsError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Service Metrics =====
+        // Get total services count
+        const { count: servicesCount, error: serviceCountError } = await supabase
+            .from('services')
+            .select('id', { count: 'exact', head: true });
+
+        if (serviceCountError) {
+            console.error('Error fetching services count:', serviceCountError);
+            return res.status(400).json({
+                success: false,
+                error: serviceCountError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Get top services (most used in registrations)
+        const { data: topServices, error: topServicesError } = await supabase.rpc('get_top_services');
+        
+        if (topServicesError) {
+            console.error('Error fetching top services:', topServicesError);
+            return res.status(400).json({
+                success: false,
+                error: topServicesError.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // ===== Compile All Data =====
+        const dashboardData = {
+            entityCounts: entityCounts || {
+                total: 0,
+                executive: 0,
+                editor: 0,
+                author: 0,
+                admin: 0,
+                other: 0
+            },
+            contentMetrics: {
+                prospectus: prospectusCount || 0,
+                registrations: registrationCount || 0,
+                journals: journalCount || 0,
+                leads: leadsCount || 0
+            },
+            financialMetrics: {
+                totalRevenue: financialMetrics?.total_revenue || 0,
+                averageTransactionValue: financialMetrics?.average_transaction_value || 0,
+                pendingAmount: pendingAmount || 0,
+                recentTransactions: recentTransactions || []
+            },
+            recentActivities: {
+                recentExecutives: recentExecutives || [],
+                recentServices: recentServices || []
+            },
+            journalMetrics: {
+                total: journalMetrics?.total || 0,
+                statusDistribution: {
+                    pending: journalMetrics?.pending || 0,
+                    under_review: journalMetrics?.under_review || 0,
+                    approved: journalMetrics?.approved || 0,
+                    rejected: journalMetrics?.rejected || 0,
+                    submitted: journalMetrics?.submitted || 0
+                }
+            },
+            serviceMetrics: {
+                total: servicesCount || 0,
+                topServices: topServices || []
+            }
+        };
+
+        res.status(200).json({
+            success: true,
+            data: dashboardData,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error in getDashboardData:', error);
+        res.status(500).json({
+            success: false,
+            error: 'An unexpected error occurred',
+            timestamp: new Date().toISOString()
+        });
+    }
+};

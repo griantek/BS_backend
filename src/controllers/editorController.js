@@ -35,6 +35,7 @@ exports.loginEditor = async (req, res) => {
       `)
       .eq('username', username)
       .eq('entity_type', 'Editor')
+      .eq('is_deleted', false)  // Only select non-deleted entities
       .single();
 
     if (error || !editor) {
@@ -111,6 +112,8 @@ exports.getAllJournalData = async (req, res) => {
                     reg_id
                 )
             `)
+            .eq('is_deleted', false)
+            .eq('entities.is_deleted', false)
             .order('id', { ascending: true });
 
         if (error) throw error;
@@ -150,6 +153,8 @@ exports.getJournalDataById = async (req, res) => {
                 )
             `)
             .eq('id', id)
+            .eq('is_deleted', false)
+            .eq('entities.is_deleted', false)
             .single();
 
         if (error) throw error;
@@ -210,6 +215,7 @@ exports.createJournalData = async (req, res) => {
             journal_link: journal_link ? encryptText(journal_link) : null
         };
 
+        // Insert journal data
         const { data, error } = await supabase
             .from('journal_data')
             .insert([{
@@ -231,6 +237,26 @@ exports.createJournalData = async (req, res) => {
             .single();
 
         if (error) throw error;
+
+        // Update registration table to set journal_added flag to true
+        if (prospectus_id && assigned_to) {
+            console.log('Updating registration journal_added flag');
+            const { error: updateError } = await supabase
+                .from('registration')
+                .update({
+                    journal_added: true,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('prospectus_id', prospectus_id)
+                .eq('assigned_to', assigned_to);
+
+            if (updateError) {
+                console.error('Error updating registration journal_added flag:', updateError);
+                // Continue with response since the journal data was created successfully
+            } else {
+                console.log('Successfully updated registration journal_added flag');
+            }
+        }
 
         // Decrypt the sensitive fields for the response
         const decryptedResponse = {
@@ -261,6 +287,22 @@ exports.updateJournalData = async (req, res) => {
     const updateData = { ...req.body };
 
     try {
+        // Check if the record is soft-deleted before updating
+        const { data: existingJournal, error: checkError } = await supabase
+            .from('journal_data')
+            .select('id')
+            .eq('id', id)
+            .eq('is_deleted', false)
+            .single();
+
+        if (checkError || !existingJournal) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found or has been deleted',
+                timestamp: new Date().toISOString()
+            });
+        }
+
         // Encrypt sensitive fields if they exist in the update data
         if (updateData.username) {
             updateData.username = encryptText(updateData.username);
@@ -319,16 +361,20 @@ exports.deleteJournalData = async (req, res) => {
     const { id } = req.params;
 
     try {
+        // Soft delete by setting is_deleted flag to true
         const { error } = await supabase
             .from('journal_data')
-            .delete()
+            .update({
+                is_deleted: true,
+                deleted_at: new Date().toISOString()
+            })
             .eq('id', id);
 
         if (error) throw error;
 
         res.status(200).json({
             success: true,
-            message: 'Journal data deleted successfully',
+            message: 'Journal data soft-deleted successfully',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -416,31 +462,32 @@ exports.getAssignedRegistrations = async (req, res) => {
     const { executive_id } = req.params;
 
     try {
-        // First get all prospectus_ids that are already in journal_data
-        const { data: journalData, error: journalError } = await supabase
-            .from('journal_data')
-            .select('prospectus_id');
-
-        if (journalError) throw journalError;
-
-        // Get the list of prospectus_ids to exclude
-        const existingProspectusIds = journalData.map(j => j.prospectus_id).filter(Boolean);
-        
-        // Step 1: Get registrations with status 'registered' and assigned to the executive
+        // Get registrations with joined prospectus data in a single query
         const { data: registrations, error: registrationError } = await supabase
             .from('registration')
-            .select('*, prospectus_id')
+            .select(`
+                *,
+                prospectus:prospectus_id(
+                    id, 
+                    client_name, 
+                    reg_id, 
+                    requirement, 
+                    email,
+                    entity:entity_id (
+                        id,
+                        username,
+                        email
+                    )
+                )
+            `)
             .eq('assigned_to', executive_id)
-            .eq('status', 'registered');
+            .eq('status', 'registered')
+            .eq('journal_added', false)
+            .eq('is_deleted', false);
             
         if (registrationError) throw registrationError;
         
-        // Filter out registrations whose prospectus_ids are already in journal_data
-        const filteredRegistrations = registrations.filter(reg => 
-            !existingProspectusIds.includes(reg.prospectus_id)
-        );
-        
-        if (filteredRegistrations.length === 0) {
+        if (!registrations || registrations.length === 0) {
             return res.status(200).json({
                 success: true,
                 data: [],
@@ -448,39 +495,10 @@ exports.getAssignedRegistrations = async (req, res) => {
             });
         }
         
-        // Step 2: Fetch prospectus details for the filtered registrations
-        const prospectusIds = filteredRegistrations.map(reg => reg.prospectus_id);
-        
-        const { data: prospectusData, error: prospectusError } = await supabase
-            .from('prospectus')
-            .select(`
-                id, 
-                client_name, 
-                reg_id, 
-                requirement, 
-                email,
-                entity:entity_id (
-                    id,
-                    username,
-                    email
-                )
-            `)
-            .in('id', prospectusIds);
-            
-        if (prospectusError) throw prospectusError;
-        
-        // Step 3: Combine the data
-        const combinedData = filteredRegistrations.map(registration => {
-            const prospectus = prospectusData.find(p => p.id === registration.prospectus_id);
-            return {
-                ...registration,
-                prospectus: prospectus || null
-            };
-        });
-
+        // The data is already in the format we need from the joined query
         res.status(200).json({
             success: true,
-            data: combinedData,
+            data: registrations,
             timestamp: new Date().toISOString()
         });
 
@@ -535,49 +553,91 @@ exports.getProspectusAssistData = async (req, res) => {
     }
 };
 
-// Alternative version getting data from prospectus table
-/*
-exports.createJournalDataFromProspectus = async (req, res) => {
-    console.log('Executing: createJournalDataFromProspectus');
-    const { prospectus_id, journal_name, status, journal_link, ...otherFields } = req.body;
-
+exports.getJournalDataByEditor = async (req, res) => {
+    console.log('Executing: getJournalDataByEditor');
+    const { editorId } = req.params;
+    const { 
+        page = 1, 
+        limit = 10, 
+        status, 
+        sortBy = 'created_at', 
+        sortOrder = 'desc',
+        searchTerm = '' 
+    } = req.query;
+    
     try {
-        // First get prospectus data
-        const { data: prospectus, error: prospectusError } = await supabase
-            .from('prospectus')
-            .select('client_name, requirement, email, executive_id')
-            .eq('id', prospectus_id)
-            .single();
+        // Simple validation
+        if (!editorId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Editor ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
 
-        if (prospectusError) throw prospectusError;
-        if (!prospectus) throw new Error('Prospectus not found');
+        // Calculate pagination values
+        const pageNumber = parseInt(page, 10);
+        const pageSize = parseInt(limit, 10);
+        const offset = (pageNumber - 1) * pageSize;
 
-        // Create journal data with prospectus information
-        const { data, error } = await supabase
+        // Build the query
+        let query = supabase
             .from('journal_data')
-            .insert([{
-                prospectus_id,
-                client_name: prospectus.client_name,
-                requirement: prospectus.requirement,
-                personal_email: prospectus.email,
-                assigned_to: prospectus.executive_id,
-                journal_name,
-                status,
-                journal_link,
-                ...otherFields
-            }])
-            .select()
-            .single();
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `, { count: 'exact' })
+            .eq('assigned_to', editorId)
+            .eq('is_deleted', false);
+
+        // Apply status filter if provided
+        if (status) {
+            query = query.eq('status', status);
+        }
+
+        // Apply search filters if provided
+        if (searchTerm) {
+            query = query.or(`personal_email.ilike.%${searchTerm}%,client_name.ilike.%${searchTerm}%,journal_name.ilike.%${searchTerm}%,paper_title.ilike.%${searchTerm}%`);
+        }
+
+        // Apply sorting
+        const sortDirection = sortOrder.toLowerCase() === 'asc' ? true : false;
+        query = query.order(sortBy, { ascending: sortDirection });
+
+        // Apply pagination
+        query = query.range(offset, offset + pageSize - 1);
+
+        // Execute the query
+        const { data, error, count } = await query;
 
         if (error) throw error;
 
-        res.status(201).json({
+        // Calculate pagination metadata
+        const totalPages = Math.ceil(count / pageSize);
+        const hasMore = pageNumber < totalPages;
+
+        res.status(200).json({
             success: true,
             data,
+            pagination: {
+                page: pageNumber,
+                limit: pageSize,
+                total: count,
+                totalPages,
+                hasMore
+            },
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Error creating journal data:', error);
+        console.error('Error fetching journal data by editor:', error);
         res.status(400).json({
             success: false,
             error: error.message,
@@ -585,6 +645,148 @@ exports.createJournalDataFromProspectus = async (req, res) => {
         });
     }
 };
-*/
+
+exports.getJournalDataByEmail = async (req, res) => {
+    console.log('Executing: getJournalDataByEmail');
+    const { email } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('personal_email', email)
+            .eq('is_deleted', false);
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data by email:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+exports.getJournalDataByAssignedEditor = async (req, res) => {
+    console.log('Executing: getJournalDataByAssignedEditor');
+    const { editorId } = req.params;
+    
+    try {
+        // Simple validation
+        if (!editorId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Editor ID is required',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Query all journal data assigned to this editor
+        const { data, error } = await supabase
+            .from('journal_data')
+            .select(`
+                *,
+                entities:assigned_to(
+                    id,
+                    username,
+                    email
+                ),
+                prospectus:prospectus_id(
+                    id,
+                    reg_id
+                )
+            `)
+            .eq('assigned_to', editorId)
+            .eq('is_deleted', false);
+
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching journal data by assigned editor:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+
+/**
+ * Update just the status field of journal data
+ * This is a specialized endpoint for quick status updates
+ */
+exports.updateJournalStatus = async (req, res) => {
+    console.log('Executing: updateJournalStatus');
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate input
+    if (!status) {
+        return res.status(400).json({
+            success: false,
+            error: 'Status is required',
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    try {
+        // Update only the status field and updated_at timestamp
+        const { data, error } = await supabase
+            .from('journal_data')
+            .update({
+                status,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                error: 'Journal data not found',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Journal status updated successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error updating journal status:', error);
+        res.status(400).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
 
 // Add other editor-specific functions here...
