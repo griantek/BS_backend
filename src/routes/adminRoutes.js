@@ -34,8 +34,8 @@ router.post('/create', createAdmin);
 router.get('/dashboard', getDashboardData);
 
 // Financial Data routes (split into smaller chunks)
-router.get('/financial-data', getFinancialData); // Original route (returns large payload)
-router.get('/financial-data/registrations', getRegistrationsFinancialData);
+router.get('/financial-data',auth, getFinancialData); // Original route (returns large payload)
+router.get('/financial-data/registrations',auth, getRegistrationsFinancialData);
 
 // Protected Service routes
 router.post('/services/create', auth, createService);
